@@ -83,6 +83,16 @@ def test_holding_rejects_non_positive_position():
         HoldingRow(ticker="NVDA", shares=-1, avg_cost=100, opened_at=date(2026, 1, 1))
 
 
+def test_guidance_comparability_metadata_must_be_complete():
+    with pytest.raises(ValidationError, match="comparability metadata"):
+        GuidanceSnapshotRow(
+            ticker="NVDA", snapshot_at=datetime.now(timezone.utc),
+            revenue_low=190000, revenue_high=200000, fiscal_period="FY2027",
+            source_filing="10-Q", source_date=date(2026, 8, 1),
+            retrieved_at=datetime.now(timezone.utc),
+        )
+
+
 def test_investment_analysis_rejects_uncalibrated_confidence_range():
     with pytest.raises(ValidationError):
         InvestmentAnalysisRow(

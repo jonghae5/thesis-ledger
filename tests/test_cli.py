@@ -311,6 +311,8 @@ def test_save_guidance_command_reports_first_snapshot_then_raised(tmp_path, monk
 
     first = runner.invoke(app, [
         "analysis", "save-guidance", "NVDA", "--revenue-low", "180000", "--revenue-high", "190000",
+        "--fiscal-period", "FY2027", "--guidance-scope", "FULL_YEAR",
+        "--currency", "USD", "--value-unit", "MILLIONS",
         "--source-filing", "10-Q", "--source-date", "2026-06-30",
     ])
     assert first.exit_code == 0
@@ -318,10 +320,33 @@ def test_save_guidance_command_reports_first_snapshot_then_raised(tmp_path, monk
 
     second = runner.invoke(app, [
         "analysis", "save-guidance", "NVDA", "--revenue-low", "200000", "--revenue-high", "210000",
+        "--fiscal-period", "FY2027", "--guidance-scope", "FULL_YEAR",
+        "--currency", "USD", "--value-unit", "MILLIONS",
         "--source-filing", "10-Q", "--source-date", "2026-08-01",
     ])
     assert second.exit_code == 0
     assert json.loads(second.stdout)["trend"] == "RAISED"
+
+
+def test_save_guidance_does_not_compare_different_fiscal_periods(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.cli.main.DB_PATH", tmp_path / "test.duckdb")
+    common = [
+        "--guidance-scope", "FULL_YEAR", "--currency", "USD", "--value-unit", "MILLIONS",
+        "--source-filing", "10-Q",
+    ]
+    first = runner.invoke(app, [
+        "analysis", "save-guidance", "NVDA", "--revenue-low", "180", "--revenue-high", "190",
+        "--fiscal-period", "FY2027", "--source-date", "2026-06-30", *common,
+    ])
+    assert first.exit_code == 0
+    second = runner.invoke(app, [
+        "analysis", "save-guidance", "NVDA", "--revenue-low", "220", "--revenue-high", "230",
+        "--fiscal-period", "FY2028", "--source-date", "2026-08-01", *common,
+    ])
+    assert second.exit_code == 0
+    out = json.loads(second.stdout)
+    assert out["trend"] == "NOT_COMPARABLE"
+    assert out["latest_other_basis"]["fiscal_period"] == "FY2027"
 
 
 def _seed_valuation_fixture(con, ticker="NVDA", price=200.0):

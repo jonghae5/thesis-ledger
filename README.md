@@ -395,11 +395,15 @@ uv run thesis analysis save-guidance NVDA \
   --revenue-high 45000000000 \
   --margin-guidance 0.72 \
   --capex-guidance 5000000000 \
+  --fiscal-period FY2027 \
+  --guidance-scope FULL_YEAR \
+  --currency USD \
+  --value-unit ONES \
   --source-filing 10-Q \
   --source-date 2026-08-20
 ```
 
-Codex 또는 사용자가 filing에서 추출한 guidance를 저장하고 직전 snapshot 대비 `FIRST_SNAPSHOT`, `RAISED`, `MAINTAINED`, `LOWERED`, `UNKNOWN`을 반환한다. Python은 filing 문장을 자동 해석하지 않는다.
+Codex 또는 사용자가 filing에서 추출한 guidance를 저장한다. 회계기간·범위·통화·단위가 모두 같은 직전 snapshot만 비교해 `FIRST_SNAPSHOT`, `RAISED`, `MAINTAINED`, `LOWERED`, `UNKNOWN`을 반환한다. 기존 snapshot은 있지만 동일 기준의 snapshot이 없으면 `NOT_COMPARABLE`을 반환한다. Python은 filing 문장을 자동 해석하지 않는다.
 
 #### Catalyst 저장
 

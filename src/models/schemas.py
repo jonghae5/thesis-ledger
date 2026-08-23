@@ -133,9 +133,20 @@ class GuidanceSnapshotRow(BaseModel):
     revenue_high: Optional[float] = None
     margin_guidance: Optional[float] = Field(default=None, ge=0, le=1)
     capex_guidance: Optional[float] = Field(default=None, ge=0)
+    fiscal_period: Optional[str] = Field(default=None, min_length=1)
+    guidance_scope: Optional[Literal["QUARTER", "FULL_YEAR", "MULTI_YEAR", "OTHER"]] = None
+    currency: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")
+    value_unit: Optional[Literal["ONES", "THOUSANDS", "MILLIONS", "BILLIONS"]] = None
     source_filing: str
     source_date: date
     retrieved_at: datetime
+
+    @model_validator(mode="after")
+    def validate_comparability_metadata(self):
+        metadata = (self.fiscal_period, self.guidance_scope, self.currency, self.value_unit)
+        if any(value is not None for value in metadata) and not all(value is not None for value in metadata):
+            raise ValueError("guidance comparability metadata must be provided together")
+        return self
 
     @model_validator(mode="after")
     def validate_guidance_range(self):

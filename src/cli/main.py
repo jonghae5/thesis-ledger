@@ -439,22 +439,35 @@ def save_guidance(
     revenue_high: Optional[float] = None,
     margin_guidance: Optional[float] = None,
     capex_guidance: Optional[float] = None,
+    fiscal_period: str = typer.Option(...),
+    guidance_scope: str = typer.Option(...),
+    currency: str = typer.Option(...),
+    value_unit: str = typer.Option(...),
     source_filing: str = typer.Option(...),
     source_date: str = typer.Option(...),
 ):
     ticker = ticker.upper()
+    fiscal_period = fiscal_period.upper()
+    guidance_scope = guidance_scope.upper()
+    currency = currency.upper()
+    value_unit = value_unit.upper()
     con = _connect()
-    previous = repository.get_latest_guidance_snapshot(con, ticker)
+    previous_any = repository.get_latest_guidance_snapshot(con, ticker)
+    previous = repository.get_latest_guidance_snapshot(
+        con, ticker, fiscal_period, guidance_scope, currency, value_unit,
+    )
 
     now = datetime.now(timezone.utc)
     repository.insert_guidance_snapshot(con, GuidanceSnapshotRow(
         ticker=ticker, snapshot_at=now, revenue_low=revenue_low, revenue_high=revenue_high,
         margin_guidance=margin_guidance, capex_guidance=capex_guidance,
+        fiscal_period=fiscal_period, guidance_scope=guidance_scope,
+        currency=currency, value_unit=value_unit,
         source_filing=source_filing, source_date=date_cls.fromisoformat(source_date), retrieved_at=now,
     ))
 
     if previous is None:
-        trend = "FIRST_SNAPSHOT"
+        trend = "FIRST_SNAPSHOT" if previous_any is None else "NOT_COMPARABLE"
     else:
         def _midpoint(low, high):
             if low is not None and high is not None:
@@ -473,7 +486,18 @@ def save_guidance(
             change = (current_mid - previous_mid) / previous_mid
             trend = "RAISED" if change > 0.005 else ("LOWERED" if change < -0.005 else "MAINTAINED")
 
-    typer.echo(json.dumps({"ticker": ticker, "trend": trend, "previous": previous}))
+    typer.echo(json.dumps({
+        "ticker": ticker,
+        "trend": trend,
+        "comparison_key": {
+            "fiscal_period": fiscal_period,
+            "guidance_scope": guidance_scope,
+            "currency": currency,
+            "value_unit": value_unit,
+        },
+        "previous": previous,
+        "latest_other_basis": previous_any if previous is None else None,
+    }))
 
 
 @valuation_app.command("multiples")

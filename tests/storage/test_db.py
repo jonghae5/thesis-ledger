@@ -37,6 +37,7 @@ def test_migrate_is_idempotent(con):
         ("004_macro_snapshots.sql",), ("005_macro_percentile.sql",),
         ("006_provider_revision_history.sql",),
         ("007_expected_return_metadata.sql",),
+        ("008_guidance_comparability.sql",),
     ]
 
 
@@ -62,6 +63,29 @@ def test_expected_return_metadata_migration_preserves_legacy_rows(tmp_path):
         """
     ).fetchone()
     assert row == (0.1, None, None, None, None)
+    connection.close()
+
+
+def test_guidance_comparability_migration_preserves_legacy_rows(tmp_path):
+    connection = get_connection(tmp_path / "legacy-guidance.duckdb")
+    connection.execute((MIGRATIONS_DIR / "001_init.sql").read_text())
+    connection.execute(
+        """
+        INSERT INTO guidance_snapshots (
+            ticker, snapshot_at, revenue_low, revenue_high,
+            source_filing, source_date, retrieved_at
+        ) VALUES ('NVDA', current_timestamp, 180, 190, '10-Q', '2026-06-30', current_timestamp)
+        """
+    )
+
+    migrate(connection)
+    row = connection.execute(
+        """
+        SELECT revenue_low, fiscal_period, guidance_scope, currency, value_unit
+        FROM guidance_snapshots
+        """
+    ).fetchone()
+    assert row == (180.0, None, None, None, None)
     connection.close()
 
 

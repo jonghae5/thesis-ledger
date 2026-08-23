@@ -117,12 +117,14 @@ def insert_guidance_snapshot(con: duckdb.DuckDBPyConnection, row: GuidanceSnapsh
         """
         INSERT INTO guidance_snapshots
             (ticker, snapshot_at, revenue_low, revenue_high, margin_guidance,
-             capex_guidance, source_filing, source_date, retrieved_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             capex_guidance, fiscal_period, guidance_scope, currency, value_unit,
+             source_filing, source_date, retrieved_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
         [row.ticker, row.snapshot_at, row.revenue_low, row.revenue_high, row.margin_guidance,
-         row.capex_guidance, row.source_filing, row.source_date, row.retrieved_at],
+         row.capex_guidance, row.fiscal_period, row.guidance_scope, row.currency, row.value_unit,
+         row.source_filing, row.source_date, row.retrieved_at],
     ).fetchone()
     return result[0]
 
@@ -197,13 +199,30 @@ def get_latest_fundamentals(con: duckdb.DuckDBPyConnection, ticker: str, limit: 
     return rows
 
 
-def get_latest_guidance_snapshot(con: duckdb.DuckDBPyConnection, ticker: str) -> Optional[dict]:
+def get_latest_guidance_snapshot(
+    con: duckdb.DuckDBPyConnection,
+    ticker: str,
+    fiscal_period: Optional[str] = None,
+    guidance_scope: Optional[str] = None,
+    currency: Optional[str] = None,
+    value_unit: Optional[str] = None,
+) -> Optional[dict]:
     cols = ["ticker", "snapshot_at", "revenue_low", "revenue_high", "margin_guidance",
-            "capex_guidance", "source_filing", "source_date", "retrieved_at"]
-    row = con.execute(
-        f"SELECT {', '.join(cols)} FROM guidance_snapshots WHERE ticker = ? ORDER BY snapshot_at DESC LIMIT 1",
-        [ticker],
-    ).fetchone()
+            "capex_guidance", "fiscal_period", "guidance_scope", "currency", "value_unit",
+            "source_filing", "source_date", "retrieved_at"]
+    query = f"SELECT {', '.join(cols)} FROM guidance_snapshots WHERE ticker = ?"
+    params = [ticker]
+    for column, value in {
+        "fiscal_period": fiscal_period,
+        "guidance_scope": guidance_scope,
+        "currency": currency,
+        "value_unit": value_unit,
+    }.items():
+        if value is not None:
+            query += f" AND {column} = ?"
+            params.append(value)
+    query += " ORDER BY snapshot_at DESC LIMIT 1"
+    row = con.execute(query, params).fetchone()
     if row is None:
         return None
     result = dict(zip(cols, row))

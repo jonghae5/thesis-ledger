@@ -150,6 +150,22 @@ def test_get_latest_guidance_snapshot_returns_most_recent(con):
     assert latest["revenue_high"] == 200000.0
 
 
+def test_get_latest_guidance_snapshot_filters_comparison_key(con):
+    for period, low in [("FY2027", 180000.0), ("FY2028", 220000.0)]:
+        repository.insert_guidance_snapshot(con, GuidanceSnapshotRow(
+            ticker="NVDA", snapshot_at=datetime.now(timezone.utc),
+            revenue_low=low, revenue_high=low + 10000,
+            fiscal_period=period, guidance_scope="FULL_YEAR",
+            currency="USD", value_unit="MILLIONS", source_filing="10-Q",
+            source_date=date(2026, 8, 1), retrieved_at=datetime.now(timezone.utc),
+        ))
+    latest = repository.get_latest_guidance_snapshot(
+        con, "NVDA", "FY2027", "FULL_YEAR", "USD", "MILLIONS",
+    )
+    assert latest["fiscal_period"] == "FY2027"
+    assert latest["revenue_low"] == 180000.0
+
+
 def test_get_catalysts_returns_sorted_and_filters_since(con):
     repository.insert_catalyst(con, CatalystRow(
         ticker="NVDA", event_date=date(2026, 11, 20), event_type="earnings",
