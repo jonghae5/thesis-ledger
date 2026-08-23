@@ -103,6 +103,8 @@ def test_evidence_is_complete_when_decision_inputs_exist(con):
     assert evidence["quality"]["can_decide"] is True
     assert evidence["quality"]["expectation_anchors"] == ["CONSENSUS_REVISION"]
     assert evidence["sections"]["market"]["status"] == "OK"
+    assert evidence["sections"]["business_quality"]["status"] == "OK"
+    assert evidence["sections"]["business_quality"]["source_type"] == "MODEL_OUTPUT"
     assert evidence["sections"]["revisions"]["revision_score"] is not None
     assert evidence["sections"]["implied_expectations"]["implied_revenue_cagr"] is not None
     assert evidence["sections"]["macro"]["status"] == "OK"
@@ -197,6 +199,8 @@ def test_compare_keeps_peer_metrics_separate_without_composite_score(con):
     assert comparison["tickers"] == ["AAA", "BBB"]
     assert len(comparison["rows"]) == 2
     assert "score" not in comparison["rows"][0]
+    assert comparison["rows"][0]["gross_margin_latest"] == pytest.approx(0.7)
+    assert "shares_cagr" in comparison["rows"][0]
     assert comparison["rows"][1]["price"] > comparison["rows"][0]["price"]
 
 

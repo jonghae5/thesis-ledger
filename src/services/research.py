@@ -2,6 +2,7 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 from src.storage import repository
+from src.tools.business_quality import compute_business_quality_inputs
 from src.tools.change import compute_change_since
 from src.tools.dcf import implied_growth_rate
 from src.tools.fundamentals import compute_fundamentals_metrics, compute_ttm_fundamentals
@@ -90,6 +91,24 @@ def fundamentals_payload(con, ticker: str, as_of: Optional[date] = None) -> dict
         "data_filed_at": rows[0]["reported_at"],
         "currency": rows[0].get("currency"),
         "source_type": "MODEL_OUTPUT",
+        "provenance": {
+            "source": rows[0].get("source"),
+            "source_url": rows[0].get("source_url"),
+            "retrieved_at": rows[0].get("retrieved_at"),
+        },
+    }
+
+
+def business_quality_payload(con, ticker: str, as_of: Optional[date] = None) -> dict:
+    effective_date = as_of or date.today()
+    rows = repository.get_annual_fundamentals_as_of(con, ticker, effective_date, limit=10)
+    if not rows:
+        raise ValueError("no stored fundamentals - run 'data fetch' first")
+    return {
+        **compute_business_quality_inputs(rows),
+        "as_of_date": effective_date.isoformat(),
+        "data_filed_at": rows[0]["reported_at"],
+        "currency": rows[0].get("currency"),
         "provenance": {
             "source": rows[0].get("source"),
             "source_url": rows[0].get("source_url"),

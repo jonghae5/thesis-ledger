@@ -191,6 +191,42 @@ def test_market_command_rejects_stale_price_by_default(tmp_path, monkeypatch):
     assert json.loads(result.stdout)["status"] == "ERROR"
 
 
+def test_quality_command_returns_point_in_time_score_free_inputs(tmp_path, monkeypatch):
+    db_path = tmp_path / "test.duckdb"
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
+    con = get_connection(db_path)
+    migrate(con)
+    for period, filed_at, revenue, operating_income, shares in [
+        ("2024-12-31", date(2025, 2, 15), 100.0, 10.0, 100.0),
+        ("2025-12-31", date(2026, 2, 15), 120.0, 15.0, 102.0),
+    ]:
+        repository.upsert_fundamental_snapshots(con, [FundamentalSnapshotRow(
+            ticker="AAA", period=period, filed_at=filed_at,
+            accession=f"AAA-{period}", form="10-K", fiscal_period="FY",
+            revenue=revenue, gross_profit=revenue * 0.4,
+            operating_income=operating_income, net_income=operating_income * 0.8,
+            operating_cashflow=operating_income, capex=revenue * 0.05,
+            fcf=operating_income - revenue * 0.05, cash=5.0, debt=10.0,
+            shares=shares, currency="USD",
+            provenance=Provenance(
+                source="sec_edgar", retrieved_at=datetime.now(timezone.utc),
+                as_of_date=filed_at,
+            ),
+        )])
+    con.close()
+
+    result = runner.invoke(app, ["data", "quality", "aaa", "--as-of", "2026-03-01"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ticker"] == "AAA"
+    assert payload["as_of_date"] == "2026-03-01"
+    assert payload["coverage"]["annual_periods"] == 2
+    assert payload["profitability"]["operating_margin"]["latest"] == pytest.approx(0.125)
+    assert payload["source_type"] == "MODEL_OUTPUT"
+    assert "score" not in payload
+
+
 def test_expectations_command_writes_snapshot_and_returns_consensus(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
     monkeypatch.setattr("src.cli.common.DB_PATH", db_path)

@@ -2,6 +2,7 @@ from datetime import date, datetime, timezone
 
 from src.services.research import (
     DEFAULT_MAX_PRICE_AGE_DAYS,
+    business_quality_payload,
     expectations_payload,
     fundamentals_payload,
     macro_payload,
@@ -113,6 +114,13 @@ def _quality_report(sections: dict) -> dict:
             if fundamentals.get(field) is None:
                 warnings.append(f"fundamentals.{field} is unavailable")
 
+    business_quality = sections["business_quality"]
+    if business_quality["status"] == "OK":
+        warnings.extend(
+            f"business_quality: {warning}"
+            for warning in business_quality.get("coverage", {}).get("warnings", [])
+        )
+
     if not can_research:
         completeness = "INSUFFICIENT"
     elif can_decide and not missing and not cannot_conclude:
@@ -135,6 +143,7 @@ def build_evidence(con, ticker: str, max_price_age_days: int = DEFAULT_MAX_PRICE
     sections = {
         "market": _section(lambda: market_payload(con, ticker, max_price_age_days)),
         "fundamentals": _section(lambda: fundamentals_payload(con, ticker)),
+        "business_quality": _section(lambda: business_quality_payload(con, ticker)),
         "expectations": _expectations_section(con, ticker),
         "revisions": _section(lambda: revisions_payload(con, ticker)),
         "valuation": _section(lambda: valuation_payload(con, ticker, max_price_age_days)),
@@ -167,6 +176,7 @@ def compare_evidence(evidence_items: list[dict]) -> dict:
         sections = evidence["sections"]
         market = sections["market"]
         fundamentals = sections["fundamentals"]
+        business_quality = sections["business_quality"]
         expectations = sections["expectations"]
         revisions = sections["revisions"]
         valuation = sections["valuation"]
@@ -186,6 +196,21 @@ def compare_evidence(evidence_items: list[dict]) -> dict:
             "fcf_margin": fundamentals.get("fcf_margin"),
             "ttm_fcf_margin": fundamentals.get("ttm", {}).get("fcf_margin"),
             "net_debt": fundamentals.get("net_debt"),
+            "annual_revenue_cagr": business_quality.get(
+                "growth_and_reinvestment", {},
+            ).get("revenue_cagr", {}).get("value"),
+            "gross_margin_latest": business_quality.get(
+                "profitability", {},
+            ).get("gross_margin", {}).get("latest"),
+            "operating_margin_latest": business_quality.get(
+                "profitability", {},
+            ).get("operating_margin", {}).get("latest"),
+            "annual_fcf_margin_latest": business_quality.get(
+                "cash_generation", {},
+            ).get("fcf_margin", {}).get("latest"),
+            "shares_cagr": business_quality.get(
+                "shareholder_and_balance_sheet", {},
+            ).get("shares_cagr", {}).get("value"),
             "fundamentals_filed_at": fundamentals.get("data_filed_at"),
             "currency": fundamentals.get("currency"),
             "eps_consensus": expectations.get("eps", {}).get("mean"),

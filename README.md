@@ -143,7 +143,7 @@ uv run thesis data fetch AVGO
 uv run thesis data compare NVDA AMD AVGO
 ```
 
-`compare`는 성장률, FCF margin, 순부채, momentum, 변동성, revision, multiple, implied growth를 같은 필드로 나란히 보여준다. 임의의 종합점수나 자동 순위는 만들지 않는다.
+`compare`는 성장률, 장기 margin·주식수 변화, FCF, 순부채, momentum, 변동성, revision, multiple, implied growth를 같은 필드로 나란히 보여준다. 임의의 종합점수나 자동 순위는 만들지 않는다.
 
 ## Evidence 품질 해석
 
@@ -155,6 +155,7 @@ uv run thesis data evidence NVDA
 
 - `market`: 가격, momentum, volatility, 52주 고점·200일선 거리
 - `fundamentals`: 매출 성장, FCF margin, 순부채, 희석
+- `business_quality`: 여러 연도의 margin 안정성, 성장·재투자, 현금전환, 주식수 변화와 재무 회복력 입력
 - `expectations`: 최근 EPS·매출 컨센서스
 - `revisions`: 7/30/90일 revision
 - `valuation`: trailing/forward multiple과 FCF yield
@@ -247,6 +248,17 @@ uv run thesis data fundamentals NVDA --as-of 2026-06-30
 `--as-of`를 사용하면 그 날짜까지 공개된 filing만 사용한다. 과거 시점 이후 제출된 재무를 소급해 사용하지 않는다.
 
 출력의 `ttm`은 최근 연간 10-K에 이후 10-Q 분기를 더하고 전년 동기 분기를 빼서 계산한다. 필요한 SEC fact가 없으면 추정하지 않고 해당 필드를 `null`로 둔다. valuation은 revenue·FCF·순이익이 모두 계산된 경우 `TTM_DERIVED`, 아니면 `ANNUAL_FALLBACK`을 사용한다.
+
+#### Business-quality 입력
+
+```bash
+uv run thesis data quality NVDA
+uv run thesis data quality NVDA --as-of 2026-06-30
+```
+
+canonical 연간 filing에서 gross·operating·FCF margin의 수준과 변동, 매출·주식수 CAGR, incremental operating margin, capex intensity, 현금전환과 순부채/FCF를 계산한다. 원천 숫자는 `history[].facts`, 계산값은 `history[].model_outputs`와 축별 요약에 분리한다.
+
+단일 quality score나 moat 판정은 만들지 않는다. `coverage`는 사용한 연도 수와 결측 경고를 반환하며, 현재 snapshot에 없는 ROIC·SBC·순자사주매입·운전자본·M&A 의존도는 `unavailable_dimensions`에 명시한다. `--as-of`는 해당 날짜까지 실제 제출된 filing만 사용한다.
 
 #### 컨센서스 snapshot
 

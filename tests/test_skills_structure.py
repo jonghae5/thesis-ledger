@@ -5,7 +5,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
 SKILL_NAMES = {
     "investment-analysis", "company-data", "expectations", "valuation",
-    "macro-context",
+    "macro-context", "business-quality",
 }
 
 

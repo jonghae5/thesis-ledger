@@ -16,6 +16,7 @@ Codex가 투자 판단을 orchestration하고, `src/`의 CLI는 데이터 수집
 |---|---|
 | 종합 투자 판단, thesis 변화, catalyst/risk | `investment-analysis` |
 | 가격, 모멘텀, 매출, 마진, 재무상태 | `company-data` |
+| 사업 경제성, moat, 재투자, 이익의 질, 자본배분 | `business-quality` |
 | 컨센서스, revision, guidance, surprise | `expectations` |
 | multiple, reverse DCF, scenario | `valuation` |
 | 금리, 인플레이션, 경기, 신용, VIX, 공포탐욕지수 | `macro-context` |
@@ -31,6 +32,7 @@ uv run thesis data seed
 uv run thesis data fetch <TICKER>
 uv run thesis data market <TICKER>
 uv run thesis data fundamentals <TICKER>
+uv run thesis data quality <TICKER> [--as-of YYYY-MM-DD]
 uv run thesis data expectations <TICKER>
 uv run thesis data revisions <TICKER>
 uv run thesis data earnings-surprise <TICKER>

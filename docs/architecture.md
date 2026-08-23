@@ -2,7 +2,7 @@
 
 ## Purpose
 
-ThesisLedger tracks the gap between reported facts, market expectations, model scenarios, and Codex's stated thesis. It does not place trades.
+ThesisLedger tracks the gap between reported facts, business quality, market expectations, model scenarios, and Codex's stated thesis. It does not place trades.
 
 ## Boundaries
 
@@ -21,6 +21,15 @@ Typer CLI (JSON stdout)
 - Python owns collection, validation, calculation, and persistence. It never calls an LLM.
 - `.agents/skills` is canonical; `.claude/skills` is a compatibility symlink.
 
+Focused Skills keep the analysis axes separate:
+
+- `company-data` owns point-in-time market and fundamental facts.
+- `business-quality` interprets business economics, durability, reinvestment, earnings quality, capital allocation, and management execution. It reuses company data and does not produce price targets or trade decisions.
+- `expectations` owns consensus, revisions, surprise, and comparable guidance.
+- `valuation` owns price-implied expectations and scenario values.
+- `macro-context` keeps macro signals independent and explains transmission paths.
+- `investment-analysis` orchestrates only the axes material to the question and owns the final thesis judgment.
+
 ## Data lifecycle
 
 Provider responses are cached by TTL and normalized before storage. `fundamental_snapshots` is the only SEC source and uses actual filing dates to prevent look-ahead bias.
@@ -32,7 +41,8 @@ Provider responses are cached by TTL and normalized before storage. `fundamental
 The CLI has three domains plus `doctor`:
 
 - `data`: fetch and inspect company/market inputs
-- `data evidence/compare`: compose source-backed inputs and peer rows without a score
+- `data quality`: compute score-free, point-in-time business-quality inputs from canonical annual filings
+- `data evidence/compare`: compose source-backed inputs, including business-quality metrics, and peer rows without a score
 - `valuation`: multiples, reverse DCF, scenarios
 - `analysis prepare`: combine prior thesis, changes, and current evidence
 - `analysis`: guidance, catalysts, memo history

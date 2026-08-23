@@ -15,6 +15,7 @@ from src.providers.yahoo import YahooPriceProvider
 from src.services import evidence as evidence_service
 from src.services.research import (
     DEFAULT_MAX_PRICE_AGE_DAYS,
+    business_quality_payload,
     fundamentals_payload,
     market_payload,
 )
@@ -121,6 +122,19 @@ def fundamentals(ticker: str, as_of: str | None = None):
     ticker = ticker.upper()
     try:
         payload = fundamentals_payload(
+            connect(), ticker, date_cls.fromisoformat(as_of) if as_of else None,
+        )
+    except ValueError as exc:
+        fail({"ticker": ticker, "status": "ERROR", "message": str(exc)})
+    typer.echo(json.dumps(payload))
+
+
+@data_app.command("quality")
+def quality(ticker: str, as_of: str | None = None):
+    """Return score-free quantitative inputs for business-quality analysis."""
+    ticker = ticker.upper()
+    try:
+        payload = business_quality_payload(
             connect(), ticker, date_cls.fromisoformat(as_of) if as_of else None,
         )
     except ValueError as exc:

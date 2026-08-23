@@ -45,6 +45,7 @@ uv run thesis analysis prepare <TICKER>
 
 - 시장 관점과 다른 근거가 없으면 `NO_VARIANT_PERCEPTION`이라고 쓴다.
 - consensus와 다른 주장에는 `시장이 믿는 것 → 내가 다르게 보는 것 → 근거 → 확인 시점 → 틀렸음을 인정할 조건`을 모두 붙인다. 하나라도 없으면 투자 thesis가 아니라 조사 가설로 남긴다.
+- 장기 thesis가 사업의 지속성에 의존하면 `business-quality` Skill로 사업 경제성·경쟁우위·재투자·이익의 질·자본배분 중 중요한 축을 확인한다. quality 판정을 가격 매력도나 BUY/SELL로 바꾸지 않고 종합 판단의 독립 근거로 사용한다.
 - 변동성, 순부채, valuation stretch, revision, concentration을 나열하되 근거 없는 단일 risk score를 만들지 않는다.
 - macro는 `macro-context` Skill의 독립 축을 사용해 기업의 매출·마진·할인율·position sizing에 전달되는 경로만 설명한다. Fear & Greed를 내재가치나 단독 BUY/SELL 신호로 사용하지 않는다.
 - catalyst는 확정 사실과 추론을 구분한다.
@@ -71,7 +72,7 @@ uv run thesis analysis save <TICKER> \
 
 답변은 질문에 직접 필요한 축만 사용한다.
 
-- 전체 업데이트: 변경된 사실 → 기대 변화 → 반대 근거 → 가격에 반영된 기대 → thesis 상태 → 판단·리스크 → 무효화 조건 → 다음 이벤트.
+- 전체 업데이트: 변경된 사실 → 기대 변화 → 중요한 business quality 변화 → 반대 근거 → 가격에 반영된 기대 → thesis 상태 → 판단·리스크 → 무효화 조건 → 다음 이벤트. Quality가 thesis에 중요하지 않거나 새 근거가 없으면 형식적으로 추가하지 않는다.
 - 지금 살 만한지: 기대 대비 차이 → valuation과 bear downside → 판단 → 진입 및 재검토 조건.
 - 하락 원인: 확인된 사건 → 기대치 변화 → thesis 영향 → 다음 확인점. 원인이 확인되지 않으면 추정이라고 밝힌다.
 - 매도 여부: 현재 forward 기대수익 → thesis·무효화 상태 → 유지/축소/exit 조건. 포지션 reference를 함께 적용한다.

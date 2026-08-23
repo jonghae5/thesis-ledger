@@ -26,3 +26,5 @@ MCP의 원천 시세·재무 숫자는 응답의 기준일과 `data_source`가 �
 해석 시 가격 기준일과 filing date를 함께 밝힌다. `market`의 momentum/volatility/200일선 거리와 `fundamentals`의 성장률/FCF margin/net debt를 사실과 모델 계산으로 구분한다. `fundamentals.ttm`이 `TTM_DERIVED`이면 최근 연간 실적에 이후 분기를 전년 동기와 교체한 값이며, 필요한 분기 fact가 없으면 해당 필드는 `null`이다. 데이터가 없거나 stale이면 추정으로 채우지 않는다.
 
 `evidence`는 다른 분석 축까지 함께 확인해야 할 때만 사용한다. 좁은 가격·재무 질문을 방향성 투자 판단으로 확장하지 않는다. `compare`는 동일 필드를 나란히 보여줄 뿐 종합점수나 자동 순위를 만들지 않는다.
+
+사업 경제성·경쟁우위·재투자·이익의 질·자본배분의 지속성을 묻는 질문은 `business-quality`가 이 Skill의 point-in-time 숫자를 재사용해 해석한다. 높은 성장률·margin·FCF만으로 이 Skill에서 moat나 좋은 사업을 판정하지 않는다.
