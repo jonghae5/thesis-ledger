@@ -23,11 +23,9 @@ Typer CLI (JSON stdout)
 
 ## Data lifecycle
 
-Provider responses are cached by TTL and normalized before storage. `fundamental_snapshots` is the canonical SEC source and uses actual filing dates to prevent look-ahead bias. The old `fundamentals` table remains a read-only compatibility fallback for databases created before this consolidation.
+Provider responses are cached by TTL and normalized before storage. `fundamental_snapshots` is the only SEC source and uses actual filing dates to prevent look-ahead bias.
 
-`estimate_snapshots`, `guidance_snapshots`, and `investment_analysis` are append-only. Existing schema columns retained solely for compatibility may be removed only in a separately authorized contract migration after preservation is verified.
-
-Migration `002_holdings.sql` remains in the immutable migration history for existing databases, but holdings have no public CLI, repository API, or active model.
+`estimate_snapshots`, `guidance_snapshots`, and `investment_analysis` are append-only. The repository targets newly created databases; schema compatibility with older local DuckDB files is not maintained.
 
 ## Public interface
 

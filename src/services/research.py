@@ -55,8 +55,6 @@ def latest_fundamentals_row(con, ticker: str, as_of: Optional[date] = None) -> d
     effective_date = as_of or date.today()
     rows = repository.get_annual_fundamentals_as_of(con, ticker, effective_date, limit=1)
     if not rows:
-        rows = repository.get_latest_fundamentals(con, ticker, limit=1)
-    if not rows:
         raise ValueError(
             f"no point-in-time fundamentals for {ticker} as of {effective_date} - "
             "run 'data fetch' first"
@@ -81,8 +79,6 @@ def market_payload(con, ticker: str, max_price_age_days: int = DEFAULT_MAX_PRICE
 def fundamentals_payload(con, ticker: str, as_of: Optional[date] = None) -> dict:
     effective_date = as_of or date.today()
     rows = repository.get_annual_fundamentals_as_of(con, ticker, effective_date, limit=8)
-    if not rows:
-        rows = repository.get_latest_fundamentals(con, ticker, limit=8)
     if not rows:
         raise ValueError("no stored fundamentals - run 'data fetch' first")
     snapshots = repository.get_fundamental_snapshots_as_of(con, ticker, effective_date)

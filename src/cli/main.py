@@ -16,7 +16,7 @@ from src.models.schemas import (
 from src.providers.alpha_vantage import AlphaVantageEstimateProvider, parse_earnings_estimates, parse_earnings_surprises
 from src.providers.finnhub import FinnhubEarningsProvider, FinnhubNewsProvider
 from src.providers.macro import FearGreedProvider, FredMacroProvider
-from src.providers.policy import commercial_provider_error
+from src.providers.provider_licensing import commercial_provider_error
 from src.providers.sec import SecFilingProvider, extract_fundamental_snapshots
 from src.providers.yahoo import YahooEstimateProvider, YahooPriceProvider
 from src.services.research import (
@@ -29,7 +29,6 @@ from src.services.research import (
     market_payload,
     macro_payload,
     prepare_update,
-    require_fresh_price as _require_fresh_price,
     resolve_estimate_period as _resolve_estimate_period,
     reverse_dcf_payload,
     valuation_fundamentals_row,

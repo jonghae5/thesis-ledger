@@ -5,7 +5,7 @@ Codex가 투자 판단을 orchestration하고, `src/`의 CLI는 데이터 수집
 ## 반드시 지킬 원칙
 
 1. `estimate_snapshots`, `guidance_snapshots`, `investment_analysis`는 append-only다.
-2. SEC 재무는 실제 filing date 기준 `fundamental_snapshots`를 canonical source로 사용한다. 기존 `fundamentals` 테이블은 이전 DB 호환용 read fallback이다.
+2. SEC 재무는 실제 filing date 기준 `fundamental_snapshots`만 canonical source로 사용한다.
 3. 숫자는 기준일과 성격(`FACT`, `ESTIMATE`, `MODEL_OUTPUT`, `LLM_INFERENCE`, `USER_ASSUMPTION`)을 구분한다.
 4. BUY/SELL보다 지난 분석 이후 무엇이 변했는지 먼저 확인한다.
 5. 단일 종합 risk score를 만들지 않는다.

@@ -84,7 +84,7 @@ def compute_ttm_fundamentals(rows: List[dict]) -> dict:
         raise ValueError("no fundamental snapshots")
 
     annual = _merge_latest_by_period([
-        row for row in rows if row.get("form") in {"10-K", "10-K/A", "LEGACY"}
+        row for row in rows if row.get("form") in {"10-K", "10-K/A"}
     ])
     if not annual:
         raise ValueError("no annual filing snapshot")

@@ -183,22 +183,6 @@ def get_latest_prices(con: duckdb.DuckDBPyConnection, ticker: str, limit: int = 
     return rows
 
 
-def get_latest_fundamentals(con: duckdb.DuckDBPyConnection, ticker: str, limit: int = 8) -> List[dict]:
-    cols = ["ticker", "period", "reported_at", "revenue", "gross_profit", "operating_income",
-            "net_income", "operating_cashflow", "capex", "fcf", "cash", "debt", "shares",
-            "source", "source_url", "retrieved_at", "as_of_date"]
-    result = con.execute(
-        f"SELECT {', '.join(cols)} FROM fundamentals WHERE ticker = ? ORDER BY period DESC LIMIT ?",
-        [ticker, limit],
-    ).fetchall()
-    rows = [dict(zip(cols, r)) for r in result]
-    for r in rows:
-        r["reported_at"] = r["reported_at"].isoformat()
-        r["retrieved_at"] = r["retrieved_at"].isoformat()
-        r["as_of_date"] = r["as_of_date"].isoformat()
-    return rows
-
-
 def get_latest_guidance_snapshot(
     con: duckdb.DuckDBPyConnection,
     ticker: str,
@@ -285,33 +269,6 @@ def get_latest_macro_snapshots(
     return result
 
 
-def get_fundamental_snapshots(
-    con: duckdb.DuckDBPyConnection,
-    ticker: str,
-    limit: int = 50,
-    as_of: Optional[date] = None,
-) -> List[dict]:
-    cols = [
-        "id", "ticker", "period", "filed_at", "accession", "form",
-        "fiscal_year", "fiscal_period", "revenue", "gross_profit",
-        "operating_income", "net_income", "operating_cashflow", "capex",
-        "fcf", "cash", "debt", "shares", "currency", "retrieved_at",
-    ]
-    query = f"SELECT {', '.join(cols)} FROM fundamental_snapshots WHERE ticker = ?"
-    params: list = [ticker]
-    if as_of is not None:
-        query += " AND filed_at <= ?"
-        params.append(as_of)
-    query += " ORDER BY filed_at DESC, period DESC LIMIT ?"
-    params.append(limit)
-    rows = con.execute(query, params).fetchall()
-    result = [dict(zip(cols, r)) for r in rows]
-    for r in result:
-        r["filed_at"] = r["filed_at"].isoformat()
-        r["retrieved_at"] = r["retrieved_at"].isoformat()
-    return result
-
-
 def get_fundamental_snapshots_as_of(
     con: duckdb.DuckDBPyConnection,
     ticker: str,
@@ -332,7 +289,7 @@ def get_fundamental_snapshots_as_of(
         FROM fundamental_snapshots
         WHERE ticker = ?
           AND filed_at <= ?
-          AND form IN ('10-K', '10-K/A', '10-Q', '10-Q/A', 'LEGACY')
+          AND form IN ('10-K', '10-K/A', '10-Q', '10-Q/A')
         ORDER BY filed_at DESC, period DESC
         LIMIT ?
         """,
@@ -364,7 +321,7 @@ def get_annual_fundamentals_as_of(
         FROM fundamental_snapshots
         WHERE ticker = ?
           AND filed_at <= ?
-          AND form IN ('10-K', '10-K/A', 'LEGACY')
+          AND form IN ('10-K', '10-K/A')
         QUALIFY ROW_NUMBER() OVER (
             PARTITION BY period ORDER BY filed_at DESC, id DESC
         ) = 1

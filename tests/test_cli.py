@@ -121,10 +121,8 @@ def test_fetch_writes_prices_and_point_in_time_fundamentals(tmp_path, monkeypatc
     con = get_connection(db_path)
     price_count = con.execute("SELECT COUNT(*) FROM prices WHERE ticker='NVDA'").fetchone()[0]
     snapshot_count = con.execute("SELECT COUNT(*) FROM fundamental_snapshots WHERE ticker='NVDA'").fetchone()[0]
-    legacy_count = con.execute("SELECT COUNT(*) FROM fundamentals WHERE ticker='NVDA'").fetchone()[0]
     assert price_count == 1
     assert snapshot_count == 1
-    assert legacy_count == 0
 
 
 def test_market_command_computes_metrics_from_stored_prices(tmp_path, monkeypatch):
@@ -290,7 +288,7 @@ def test_revisions_command_computes_from_stored_snapshots(tmp_path, monkeypatch)
     monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
-    for days_ago, eps in [(30, 4.00), (0, 4.20)]:
+    for days_ago, eps in [(31, 4.00), (0, 4.20)]:
         repository.insert_estimate_snapshot(con, EstimateSnapshotRow(
             ticker="NVDA",
             snapshot_at=datetime.now(timezone.utc) - timedelta(days=days_ago),

@@ -6,7 +6,7 @@ import yfinance as yf
 
 from src.models.enums import ProviderStatus
 from src.models.schemas import ProviderResult
-from src.providers.policy import commercial_provider_error
+from src.providers.provider_licensing import commercial_provider_error
 
 
 class YahooPriceProvider:

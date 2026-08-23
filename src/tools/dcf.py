@@ -164,6 +164,16 @@ def implied_growth_rate(
         raise ValueError("target_enterprise_value must be positive")
 
     low, high = -0.9, 5.0
+    low_ev = project_enterprise_value(
+        base_revenue, fcf_margin, low, discount_rate, terminal_growth, years,
+    )
+    high_ev = project_enterprise_value(
+        base_revenue, fcf_margin, high, discount_rate, terminal_growth, years,
+    )
+    if not low_ev <= target_enterprise_value <= high_ev:
+        raise ValueError(
+            "implied growth is outside the supported search range (-90% to 500%)"
+        )
     for _ in range(100):
         mid = (low + high) / 2
         ev = project_enterprise_value(base_revenue, fcf_margin, mid, discount_rate, terminal_growth, years)
@@ -172,23 +182,6 @@ def implied_growth_rate(
         else:
             high = mid
     return (low + high) / 2
-
-
-def scenario_target_price(
-    base_revenue: float,
-    fcf_margin: float,
-    revenue_growth: float,
-    shares: float,
-    net_debt: float,
-    discount_rate: float = 0.09,
-    terminal_growth: float = 0.025,
-    years: int = 10,
-) -> float:
-    if shares <= 0:
-        raise ValueError("shares must be positive")
-    ev = project_enterprise_value(base_revenue, fcf_margin, revenue_growth, discount_rate, terminal_growth, years)
-    market_cap = ev - net_debt
-    return market_cap / shares
 
 
 def probability_weighted_value(scenarios: List[dict]) -> float:

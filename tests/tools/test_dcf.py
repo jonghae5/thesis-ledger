@@ -8,7 +8,6 @@ from src.tools.dcf import (
     probability_weighted_value,
     project_enterprise_value,
     project_enterprise_value_fade,
-    scenario_target_price,
 )
 
 
@@ -35,10 +34,15 @@ def test_implied_growth_rate_raises_on_non_positive_margin():
         implied_growth_rate(100.0, fcf_margin=0.0, target_enterprise_value=500.0)
 
 
-def test_scenario_target_price_higher_growth_gives_higher_price():
-    low = scenario_target_price(100.0, fcf_margin=0.3, revenue_growth=0.05, shares=10.0, net_debt=0.0)
-    high = scenario_target_price(100.0, fcf_margin=0.3, revenue_growth=0.25, shares=10.0, net_debt=0.0)
-    assert high > low > 0
+def test_implied_growth_rate_rejects_target_outside_search_range():
+    maximum_supported_ev = project_enterprise_value(
+        100.0, fcf_margin=0.35, growth=5.0,
+    )
+    with pytest.raises(ValueError, match="outside the supported search range"):
+        implied_growth_rate(
+            100.0, fcf_margin=0.35,
+            target_enterprise_value=maximum_supported_ev * 1.01,
+        )
 
 
 def test_probability_weighted_value_computes_expectation():

@@ -1,10 +1,11 @@
 import os
+from typing import Optional
 
 
 RESTRICTED_FOR_COMMERCIAL_USE = {"yahoo_finance", "alpha_vantage", "finnhub"}
 
 
-def commercial_provider_error(provider: str) -> str | None:
+def commercial_provider_error(provider: str) -> Optional[str]:
     usage = os.environ.get("THESIS_LEDGER_USAGE", "personal").strip().lower()
     if usage not in {"personal", "commercial"}:
         return "THESIS_LEDGER_USAGE must be 'personal' or 'commercial'"

@@ -7,7 +7,7 @@ import httpx
 from src.models.enums import ProviderStatus
 from src.models.schemas import ProviderResult
 from src.providers.cache import cached_fetch
-from src.providers.policy import commercial_provider_error
+from src.providers.provider_licensing import commercial_provider_error
 
 FINNHUB_BASE = "https://finnhub.io/api/v1"
 CACHE_TTL_SECONDS = 3600
