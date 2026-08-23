@@ -155,6 +155,35 @@ def test_fetch_fails_when_sec_response_has_no_supported_filing_facts(tmp_path, m
     assert "no supported" in payload["fundamentals"]["message"]
 
 
+def test_guidance_sources_command_returns_candidates_without_saving(monkeypatch):
+    provider_data = {
+        "ticker": "NVDA",
+        "classification": "CANDIDATE_SOURCE",
+        "filings": [{
+            "filing_date": "2026-08-20",
+            "filing_index_url": "https://www.sec.gov/example/index.html",
+            "primary_document_url": "https://www.sec.gov/example/8-k.htm",
+        }],
+        "warning": "documents are candidate primary sources",
+    }
+    monkeypatch.setattr(
+        "src.providers.sec.SecFilingProvider.get_guidance_sources",
+        lambda self, ticker, lookback_days=365, limit=8: ProviderResult(
+            status=ProviderStatus.OK, data=provider_data,
+        ),
+    )
+
+    result = runner.invoke(app, [
+        "data", "guidance-sources", "nvda", "--days", "180", "--limit", "4",
+    ])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "OK"
+    assert payload["classification"] == "CANDIDATE_SOURCE"
+    assert payload["filings"][0]["filing_index_url"].endswith("index.html")
+
+
 def test_market_command_computes_metrics_from_stored_prices(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
     monkeypatch.setattr("src.cli.common.DB_PATH", db_path)

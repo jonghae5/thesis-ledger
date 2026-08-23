@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from typing import List, Optional
 
@@ -7,6 +8,15 @@ from src.models.schemas import (
     CatalystRow, CompanyRow, EstimateSnapshotRow, FundamentalSnapshotRow,
     GuidanceSnapshotRow, InvestmentAnalysisRow, MacroSnapshotRow, PriceRow,
 )
+
+
+FUNDAMENTAL_QUALITY_COLUMNS = [
+    "assets", "stockholders_equity", "short_term_investments", "current_debt",
+    "pretax_income",
+    "income_tax_expense", "sbc", "share_repurchases", "accounts_receivable",
+    "inventory", "accounts_payable", "goodwill", "acquisition_cash_paid",
+    "interest_expense", "source_concepts_json",
+]
 
 
 def upsert_company(con: duckdb.DuckDBPyConnection, row: CompanyRow) -> None:
@@ -41,32 +51,35 @@ def upsert_prices(con: duckdb.DuckDBPyConnection, rows: List[PriceRow]) -> int:
 
 
 def upsert_fundamental_snapshots(con: duckdb.DuckDBPyConnection, rows: List[FundamentalSnapshotRow]) -> int:
+    columns = [
+        "ticker", "period", "filed_at", "accession", "form", "fiscal_year",
+        "fiscal_period", "revenue", "gross_profit", "operating_income",
+        "net_income", "operating_cashflow", "capex", "fcf", "cash", "debt",
+        "shares", "currency", "source", "source_url", "retrieved_at",
+        *FUNDAMENTAL_QUALITY_COLUMNS,
+    ]
+    updates = [column for column in columns if column not in {"ticker", "period", "accession"}]
     for r in rows:
+        values = [
+            r.ticker, r.period, r.filed_at, r.accession, r.form, r.fiscal_year,
+            r.fiscal_period, r.revenue, r.gross_profit, r.operating_income,
+            r.net_income, r.operating_cashflow, r.capex, r.fcf, r.cash, r.debt,
+            r.shares, r.currency, r.provenance.source, r.provenance.source_url,
+            r.provenance.retrieved_at, r.assets, r.stockholders_equity,
+            r.short_term_investments,
+            r.current_debt, r.pretax_income, r.income_tax_expense, r.sbc,
+            r.share_repurchases, r.accounts_receivable, r.inventory,
+            r.accounts_payable, r.goodwill, r.acquisition_cash_paid,
+            r.interest_expense, json.dumps(r.source_concepts, sort_keys=True),
+        ]
         con.execute(
-            """
-            INSERT INTO fundamental_snapshots (
-                ticker, period, filed_at, accession, form, fiscal_year, fiscal_period,
-                revenue, gross_profit, operating_income, net_income, operating_cashflow,
-                capex, fcf, cash, debt, shares, currency, source, source_url, retrieved_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            f"""
+            INSERT INTO fundamental_snapshots ({', '.join(columns)})
+            VALUES ({', '.join('?' for _ in columns)})
             ON CONFLICT (ticker, accession, period) DO UPDATE SET
-                filed_at = excluded.filed_at, form = excluded.form,
-                fiscal_year = excluded.fiscal_year, fiscal_period = excluded.fiscal_period,
-                revenue = excluded.revenue, gross_profit = excluded.gross_profit,
-                operating_income = excluded.operating_income, net_income = excluded.net_income,
-                operating_cashflow = excluded.operating_cashflow, capex = excluded.capex,
-                fcf = excluded.fcf, cash = excluded.cash, debt = excluded.debt,
-                shares = excluded.shares, currency = excluded.currency,
-                source = excluded.source, source_url = excluded.source_url,
-                retrieved_at = excluded.retrieved_at
+                {', '.join(f'{column} = excluded.{column}' for column in updates)}
             """,
-            [
-                r.ticker, r.period, r.filed_at, r.accession, r.form,
-                r.fiscal_year, r.fiscal_period, r.revenue, r.gross_profit,
-                r.operating_income, r.net_income, r.operating_cashflow, r.capex,
-                r.fcf, r.cash, r.debt, r.shares, r.currency,
-                r.provenance.source, r.provenance.source_url, r.provenance.retrieved_at,
-            ],
+            values,
         )
     return len(rows)
 
@@ -281,7 +294,7 @@ def get_fundamental_snapshots_as_of(
         "fiscal_year", "fiscal_period", "revenue", "gross_profit",
         "operating_income", "net_income", "operating_cashflow", "capex",
         "fcf", "cash", "debt", "shares", "currency", "source",
-        "source_url", "retrieved_at",
+        "source_url", "retrieved_at", *FUNDAMENTAL_QUALITY_COLUMNS,
     ]
     rows = con.execute(
         f"""
@@ -299,6 +312,7 @@ def get_fundamental_snapshots_as_of(
     for row in result:
         row["filed_at"] = row["filed_at"].isoformat()
         row["retrieved_at"] = row["retrieved_at"].isoformat()
+        row["source_concepts"] = json.loads(row.pop("source_concepts_json") or "{}")
     return result
 
 
@@ -313,7 +327,7 @@ def get_annual_fundamentals_as_of(
         "ticker", "period", "filed_at", "revenue", "gross_profit",
         "operating_income", "net_income", "operating_cashflow", "capex",
         "fcf", "cash", "debt", "shares", "currency", "accession", "form",
-        "source", "source_url", "retrieved_at",
+        "source", "source_url", "retrieved_at", *FUNDAMENTAL_QUALITY_COLUMNS,
     ]
     rows = con.execute(
         f"""
@@ -334,6 +348,7 @@ def get_annual_fundamentals_as_of(
     for r in result:
         r["reported_at"] = r.pop("filed_at").isoformat()
         r["retrieved_at"] = r["retrieved_at"].isoformat()
+        r["source_concepts"] = json.loads(r.pop("source_concepts_json") or "{}")
     return result
 
 

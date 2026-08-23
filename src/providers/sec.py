@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import httpx
@@ -19,8 +19,43 @@ US_GAAP_TAGS: Dict[str, List[str]] = {
     "operating_cashflow": ["NetCashProvidedByUsedInOperatingActivities"],
     "capex": ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"],
     "cash": ["CashAndCashEquivalentsAtCarryingValue"],
-    "debt": ["LongTermDebtNoncurrent", "LongTermDebt"],
+    "debt": [
+        "LongTermDebtAndFinanceLeaseObligationsNoncurrent",
+        "LongTermDebtNoncurrent",
+    ],
     "shares": ["CommonStockSharesOutstanding"],
+    "assets": ["Assets"],
+    "stockholders_equity": [
+        "StockholdersEquity",
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+    ],
+    "short_term_investments": ["ShortTermInvestments", "MarketableSecuritiesCurrent"],
+    "current_debt": [
+        "LongTermDebtAndFinanceLeaseObligationsCurrent",
+        "LongTermDebtCurrent",
+    ],
+    "pretax_income": [
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxes",
+    ],
+    "income_tax_expense": ["IncomeTaxExpenseBenefit"],
+    "sbc": ["ShareBasedCompensation"],
+    "share_repurchases": ["PaymentsForRepurchaseOfCommonStock"],
+    "accounts_receivable": ["AccountsReceivableNetCurrent"],
+    "inventory": ["InventoryNet"],
+    "accounts_payable": ["AccountsPayableCurrent"],
+    "goodwill": ["Goodwill"],
+    "acquisition_cash_paid": [
+        "PaymentsToAcquireBusinessesNetOfCashAcquired",
+        "PaymentsToAcquireBusinessesGross",
+    ],
+    "interest_expense": [
+        "InterestExpenseNonoperating",
+        "InterestExpense",
+        "InterestExpenseDebt",
+        "InterestExpenseDebtExcludingAmortization",
+    ],
 }
 
 
@@ -76,10 +111,86 @@ class SecFilingProvider:
             return ProviderResult(status=ProviderStatus.ERROR, message=str(exc))
         return ProviderResult(status=ProviderStatus.OK, data=payload)
 
+    def get_guidance_sources(
+        self, ticker: str, lookback_days: int = 365, limit: int = 8,
+    ) -> ProviderResult:
+        """Discover earnings-release documents without interpreting guidance."""
+        if not 1 <= lookback_days <= 3650:
+            return ProviderResult(
+                status=ProviderStatus.ERROR,
+                message="lookback_days must be between 1 and 3650",
+            )
+        if not 1 <= limit <= 50:
+            return ProviderResult(
+                status=ProviderStatus.ERROR,
+                message="limit must be between 1 and 50",
+            )
+
+        submissions = self.get_submissions(ticker)
+        if submissions.status != ProviderStatus.OK:
+            return submissions
+        try:
+            payload = submissions.data or {}
+            cik = str(payload.get("cik", "")).lstrip("0")
+            if not cik:
+                raise ValueError("SEC submissions response has no CIK")
+            recent = payload.get("filings", {}).get("recent", {})
+            fields = (
+                "accessionNumber", "filingDate", "form", "primaryDocument", "items",
+            )
+            accession_numbers = recent.get("accessionNumber", [])
+            filings = []
+            for index in range(len(accession_numbers)):
+                filing = {}
+                for field in fields:
+                    values = recent.get(field, [])
+                    filing[field] = values[index] if index < len(values) else None
+                filings.append(filing)
+            cutoff = date.today() - timedelta(days=lookback_days)
+            earnings_filings = sorted(
+                (
+                    filing for filing in filings
+                    if filing.get("form") == "8-K"
+                    and "2.02" in (filing.get("items") or "")
+                    and filing.get("filingDate")
+                    and date.fromisoformat(filing["filingDate"]) >= cutoff
+                ),
+                key=lambda filing: filing["filingDate"],
+                reverse=True,
+            )[:limit]
+
+            rows = []
+            for filing in earnings_filings:
+                accession = filing["accessionNumber"]
+                compact_accession = accession.replace("-", "")
+                base_url = (
+                    f"https://www.sec.gov/Archives/edgar/data/{cik}/{compact_accession}"
+                )
+                rows.append({
+                    "filing_date": filing["filingDate"],
+                    "accession": accession,
+                    "form": filing["form"],
+                    "items": filing.get("items"),
+                    "filing_index_url": f"{base_url}/{accession}-index.html",
+                    "primary_document_url": (
+                        f"{base_url}/{filing['primaryDocument']}"
+                        if filing.get("primaryDocument") else None
+                    ),
+                })
+        except Exception as exc:
+            return ProviderResult(status=ProviderStatus.ERROR, message=str(exc))
+        return ProviderResult(status=ProviderStatus.OK, data={
+            "ticker": ticker.upper(),
+            "classification": "CANDIDATE_SOURCE",
+            "filings": rows,
+            "warning": "filings are source candidates; Python does not infer or save guidance",
+        })
+
 
 _FLOW_FIELDS = {
     "revenue", "gross_profit", "operating_income", "net_income",
-    "operating_cashflow", "capex",
+    "operating_cashflow", "capex", "pretax_income", "income_tax_expense",
+    "sbc", "share_repurchases", "acquisition_cash_paid", "interest_expense",
 }
 
 
@@ -138,10 +249,12 @@ def extract_fundamental_snapshots(facts_json: dict, ticker: str, retrieved_at: s
                         "fiscal_year": item.get("fy"),
                         "fiscal_period": item.get("fp"),
                         "currency": "USD",
+                        "source_concepts": {},
                     })
                     priority_key = (key, field)
                     if priority <= field_priority.get(priority_key, priority):
                         row[field] = item.get("val")
+                        row["source_concepts"][field] = tag
                         field_priority[priority_key] = priority
 
     rows = []
@@ -150,9 +263,13 @@ def extract_fundamental_snapshots(facts_json: dict, ticker: str, retrieved_at: s
         ocf = values.get("operating_cashflow")
         capex = values.get("capex")
         values["fcf"] = ocf - capex if ocf is not None and capex is not None else None
+        cik = str(facts_json.get("cik", "")).zfill(10)
         values.update({
             "source": "sec_edgar",
-            "source_url": "https://data.sec.gov/api/xbrl/companyfacts/",
+            "source_url": (
+                f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+                if cik.strip("0") else "https://data.sec.gov/api/xbrl/companyfacts/"
+            ),
             "retrieved_at": retrieved_at,
             "as_of_date": values["filed_at"],
         })

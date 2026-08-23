@@ -30,4 +30,7 @@ def test_migrate_is_idempotent(con):
     rows = con.execute("SELECT table_name FROM information_schema.tables").fetchall()
     assert {r[0] for r in rows}.issuperset(EXPECTED_TABLES)
     versions = con.execute("SELECT version FROM schema_migrations ORDER BY version").fetchall()
-    assert versions == [("001_init.sql",)]
+    assert versions == [
+        ("001_init.sql",),
+        ("002_sec_quality_inputs.sql",),
+    ]

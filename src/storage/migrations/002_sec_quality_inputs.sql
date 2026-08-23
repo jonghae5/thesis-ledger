@@ -1,0 +1,15 @@
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS assets DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS stockholders_equity DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS short_term_investments DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS current_debt DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS pretax_income DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS income_tax_expense DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS sbc DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS share_repurchases DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS accounts_receivable DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS inventory DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS accounts_payable DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS goodwill DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS acquisition_cash_paid DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS interest_expense DOUBLE;
+ALTER TABLE fundamental_snapshots ADD COLUMN IF NOT EXISTS source_concepts_json VARCHAR;

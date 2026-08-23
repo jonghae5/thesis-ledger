@@ -52,7 +52,18 @@ def _fundamental_snapshot_row_from_dict(row: dict) -> FundamentalSnapshotRow:
         gross_profit=row.get("gross_profit"), operating_income=row.get("operating_income"),
         net_income=row.get("net_income"), operating_cashflow=row.get("operating_cashflow"),
         capex=row.get("capex"), fcf=row.get("fcf"), cash=row.get("cash"), debt=row.get("debt"),
-        shares=row.get("shares"), currency=row.get("currency"),
+        shares=row.get("shares"), assets=row.get("assets"),
+        stockholders_equity=row.get("stockholders_equity"),
+        short_term_investments=row.get("short_term_investments"),
+        current_debt=row.get("current_debt"), pretax_income=row.get("pretax_income"),
+        income_tax_expense=row.get("income_tax_expense"), sbc=row.get("sbc"),
+        share_repurchases=row.get("share_repurchases"),
+        accounts_receivable=row.get("accounts_receivable"),
+        inventory=row.get("inventory"), accounts_payable=row.get("accounts_payable"),
+        goodwill=row.get("goodwill"),
+        acquisition_cash_paid=row.get("acquisition_cash_paid"),
+        interest_expense=row.get("interest_expense"),
+        source_concepts=row.get("source_concepts", {}), currency=row.get("currency"),
         provenance=Provenance(
             source=row["source"], source_url=row["source_url"],
             retrieved_at=row["retrieved_at"], as_of_date=row["as_of_date"],
@@ -140,6 +151,22 @@ def quality(ticker: str, as_of: str | None = None):
     except ValueError as exc:
         fail({"ticker": ticker, "status": "ERROR", "message": str(exc)})
     typer.echo(json.dumps(payload))
+
+
+@data_app.command("guidance-sources")
+def guidance_sources(ticker: str, days: int = 365, limit: int = 8):
+    """Discover primary earnings-release documents; never infer or save guidance."""
+    ticker = ticker.upper()
+    result = SecFilingProvider().get_guidance_sources(
+        ticker, lookback_days=days, limit=limit,
+    )
+    if result.status != ProviderStatus.OK:
+        fail({
+            "ticker": ticker,
+            "status": result.status.value,
+            "message": result.message,
+        })
+    typer.echo(json.dumps({"status": "OK", **result.data}))
 
 
 @data_app.command("evidence")

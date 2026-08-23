@@ -1,4 +1,5 @@
 from src.models.enums import ProviderStatus
+from src.models.schemas import ProviderResult
 from src.providers.sec import SecFilingProvider, extract_fundamental_snapshots
 
 TICKERS_JSON = {
@@ -139,3 +140,82 @@ def test_extract_fundamental_snapshots_uses_actual_filing_date_and_accession():
     ]
     assert rows[1]["revenue"] == 30.0
     assert rows[1]["cash"] == 20.0
+
+
+def test_extract_fundamental_snapshots_preserves_quality_inputs_and_source_concepts():
+    annual = {
+        "start": "2025-01-01", "end": "2025-12-31", "filed": "2026-02-20",
+        "accn": "0001-26-000001", "form": "10-K", "fp": "FY", "fy": 2025,
+    }
+    instant = {
+        "end": "2025-12-31", "filed": "2026-02-20", "accn": "0001-26-000001",
+        "form": "10-K", "fp": "FY", "fy": 2025,
+    }
+    payload = {"cik": 1, "facts": {"us-gaap": {
+        "OperatingIncomeLoss": {"units": {"USD": [{**annual, "val": 25.0}]}},
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest": {
+            "units": {"USD": [{**annual, "val": 20.0}]},
+        },
+        "IncomeTaxExpenseBenefit": {"units": {"USD": [{**annual, "val": 5.0}]}},
+        "ShareBasedCompensation": {"units": {"USD": [{**annual, "val": 3.0}]}},
+        "PaymentsForRepurchaseOfCommonStock": {
+            "units": {"USD": [{**annual, "val": 4.0}]},
+        },
+        "PaymentsToAcquireBusinessesGross": {
+            "units": {"USD": [{**annual, "val": 6.0}]},
+        },
+        "Assets": {"units": {"USD": [{**instant, "val": 200.0}]}},
+        "StockholdersEquity": {"units": {"USD": [{**instant, "val": 100.0}]}},
+        "LongTermDebtCurrent": {"units": {"USD": [{**instant, "val": 4.0}]}},
+        "ShortTermBorrowings": {"units": {"USD": [{**instant, "val": 9.0}]}},
+        "AccountsReceivableNetCurrent": {
+            "units": {"USD": [{**instant, "val": 12.0}]},
+        },
+    }}}
+
+    rows = extract_fundamental_snapshots(payload, "AAA", "2026-02-21T00:00:00+00:00")
+
+    assert len(rows) == 1
+    assert rows[0]["assets"] == 200.0
+    assert rows[0]["sbc"] == 3.0
+    assert rows[0]["income_tax_expense"] == 5.0
+    assert rows[0]["current_debt"] == 4.0
+    assert rows[0]["acquisition_cash_paid"] == 6.0
+    assert rows[0]["source_concepts"]["sbc"] == "ShareBasedCompensation"
+    assert rows[0]["source_concepts"]["current_debt"] == "LongTermDebtCurrent"
+    assert rows[0]["source_concepts"]["acquisition_cash_paid"] == (
+        "PaymentsToAcquireBusinessesGross"
+    )
+    assert rows[0]["source_concepts"]["assets"] == "Assets"
+    assert rows[0]["source_url"].endswith("CIK0000000001.json")
+
+
+def test_get_guidance_sources_returns_documents_without_interpreting_them(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.providers.cache.CACHE_ROOT", tmp_path)
+    submissions = {
+        "cik": "0001045810",
+        "filings": {"recent": {
+            "accessionNumber": ["0001045810-26-000051"],
+            "filingDate": ["2026-08-20"],
+            "form": ["8-K"],
+            "primaryDocument": ["nvda-20260820.htm"],
+            "items": ["2.02,9.01"],
+        }},
+    }
+    monkeypatch.setattr(
+        SecFilingProvider, "get_submissions",
+        lambda self, ticker: ProviderResult(
+            status=ProviderStatus.OK, data=submissions,
+        ),
+    )
+
+    result = SecFilingProvider(contact_email="research@example.com").get_guidance_sources("NVDA")
+
+    assert result.status == ProviderStatus.OK
+    assert result.data["classification"] == "CANDIDATE_SOURCE"
+    filing = result.data["filings"][0]
+    assert filing["filing_index_url"].endswith(
+        "/000104581026000051/0001045810-26-000051-index.html"
+    )
+    assert filing["primary_document_url"].endswith("/nvda-20260820.htm")
+    assert "guidance" not in filing

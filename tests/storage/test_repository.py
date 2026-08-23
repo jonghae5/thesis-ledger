@@ -108,6 +108,35 @@ def test_annual_fundamentals_as_of_does_not_time_travel(con):
     assert rows_after_filing[0]["revenue"] == 100.0
 
 
+def test_fundamental_quality_inputs_and_concepts_round_trip(con):
+    row = FundamentalSnapshotRow(
+        ticker="NVDA", period="2025-01-31", filed_at=date(2025, 2, 26),
+        accession="0001-25-000001", form="10-K", fiscal_period="FY",
+        revenue=100.0, assets=200.0, stockholders_equity=120.0,
+        pretax_income=20.0, income_tax_expense=4.0, sbc=3.0,
+        accounts_receivable=12.0, inventory=8.0, accounts_payable=10.0,
+        source_concepts={
+            "assets": "Assets",
+            "sbc": "ShareBasedCompensation",
+        },
+        provenance=_prov(date(2025, 2, 26)),
+    )
+
+    repository.upsert_fundamental_snapshots(con, [row])
+
+    annual = repository.get_annual_fundamentals_as_of(
+        con, "NVDA", date(2025, 2, 26),
+    )[0]
+    snapshots = repository.get_fundamental_snapshots_as_of(
+        con, "NVDA", date(2025, 2, 26),
+    )[0]
+    assert annual["assets"] == 200.0
+    assert annual["sbc"] == 3.0
+    assert annual["source_concepts"]["sbc"] == "ShareBasedCompensation"
+    assert snapshots["accounts_receivable"] == 12.0
+    assert snapshots["source_concepts"]["assets"] == "Assets"
+
+
 def test_insert_guidance_snapshot_and_investment_analysis_and_catalyst(con):
     gid = repository.insert_guidance_snapshot(con, GuidanceSnapshotRow(
         ticker="NVDA", snapshot_at=datetime.now(timezone.utc), revenue_low=190000.0,

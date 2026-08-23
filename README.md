@@ -36,7 +36,7 @@ uv run thesis data fetch NVDA
 uv run thesis data evidence NVDA
 ```
 
-`data fetch`는 가격과 SEC point-in-time 재무만 갱신한다. 컨센서스는 Alpha Vantage 키가 있을 때 별도로 저장한다.
+`data fetch`는 가격과 SEC point-in-time 재무만 갱신한다. 기본 손익·현금흐름 외에 ROIC 입력, SBC·자사주 매입, 운전자본, goodwill·인수 현금흐름, 이자비용과 실제 사용한 SEC concept도 저장한다. 컨센서스는 Alpha Vantage 키가 있을 때 별도로 저장한다.
 
 ```bash
 uv run thesis data expectations NVDA
@@ -155,7 +155,7 @@ uv run thesis data evidence NVDA
 
 - `market`: 가격, momentum, volatility, 52주 고점·200일선 거리
 - `fundamentals`: 매출 성장, FCF margin, 순부채, 희석
-- `business_quality`: 여러 연도의 margin 안정성, 성장·재투자, 현금전환, 주식수 변화와 재무 회복력 입력
+- `business_quality`: 여러 연도의 margin 안정성, ROIC·재투자, 현금전환, SBC·자사주 매입, 운전자본, M&A 의존도와 재무 회복력 입력
 - `expectations`: 최근 EPS·매출 컨센서스
 - `revisions`: 7/30/90일 revision
 - `valuation`: trailing/forward multiple과 FCF yield
@@ -214,6 +214,7 @@ uv run thesis data fetch NVDA
 
 - Yahoo Finance 가격 약 400일치를 저장한다.
 - SEC company facts를 filing date/accession별 snapshot으로 저장한다.
+- SEC가 보고한 경우 ROIC 입력, SBC·자사주 매입, 운전자본, goodwill·인수 현금흐름, 이자비용과 선택된 XBRL concept를 함께 저장한다.
 - 가격 또는 SEC 수집이 실패하면 exit code `1`이다.
 - 컨센서스는 수집하지 않는다.
 
@@ -256,9 +257,9 @@ uv run thesis data quality NVDA
 uv run thesis data quality NVDA --as-of 2026-06-30
 ```
 
-canonical 연간 filing에서 gross·operating·FCF margin의 수준과 변동, 매출·주식수 CAGR, incremental operating margin, capex intensity, 현금전환과 순부채/FCF를 계산한다. 원천 숫자는 `history[].facts`, 계산값은 `history[].model_outputs`와 축별 요약에 분리한다.
+canonical 연간 filing에서 gross·operating·FCF margin의 수준과 변동, 매출·주식수 CAGR, incremental operating margin, ROIC, capex intensity, 현금전환, SBC·자사주 매입, 운전자본, goodwill·인수 현금흐름과 순부채/이자보상배율을 계산한다. 원천 숫자는 `history[].facts`, 계산값은 `history[].model_outputs`와 축별 요약에 분리한다.
 
-단일 quality score나 moat 판정은 만들지 않는다. `coverage`는 사용한 연도 수와 결측 경고를 반환하며, 현재 snapshot에 없는 ROIC·SBC·순자사주매입·운전자본·M&A 의존도는 `unavailable_dimensions`에 명시한다. `--as-of`는 해당 날짜까지 실제 제출된 filing만 사용한다.
+단일 quality score나 moat 판정은 만들지 않는다. `coverage.metric_availability`는 각 계산값을 `AVAILABLE/MISSING`으로 따로 표시한다. product/geographic segment와 부채 만기는 Companyfacts만으로 신뢰성 있게 정규화하지 않아 `unavailable_dimensions`의 원문 확인 대상으로 남긴다. `--as-of`는 해당 날짜까지 실제 제출된 filing만 사용한다. 기존 DB는 migration 후 `data fetch`를 다시 실행해야 새 필드가 채워진다.
 
 #### 컨센서스 snapshot
 
@@ -394,6 +395,15 @@ uv run thesis analysis change-since NVDA \
 
 해당 날짜 전후의 가격·EPS 컨센서스·매출 컨센서스 변화를 계산한다. 그 날짜 이전에 저장된 데이터가 없으면 당시 값과 변화율은 `null`이다.
 
+#### Guidance 원문 후보 찾기
+
+```bash
+uv run thesis data guidance-sources NVDA
+uv run thesis data guidance-sources NVDA --days 730 --limit 12
+```
+
+SEC 제출 목록에서 최근 Item 2.02 8-K의 filing index와 primary document URL을 반환한다. 결과는 `CANDIDATE_SOURCE`이며 숫자를 추출하거나 `guidance_snapshots`에 저장하지 않는다. Codex 또는 사용자가 filing index의 earnings release 원문을 확인해 기간·범위·통화·단위를 정규화한 뒤 아래 명령으로 저장한다.
+
 #### Guidance 저장
 
 ```bash
@@ -410,7 +420,7 @@ uv run thesis analysis save-guidance NVDA \
   --source-date 2026-08-20
 ```
 
-Codex 또는 사용자가 filing에서 추출한 guidance를 저장한다. 회계기간·범위·통화·단위가 모두 같은 직전 snapshot만 비교해 `FIRST_SNAPSHOT`, `RAISED`, `MAINTAINED`, `LOWERED`, `UNKNOWN`을 반환한다. 기존 snapshot은 있지만 동일 기준의 snapshot이 없으면 `NOT_COMPARABLE`을 반환한다. Python은 filing 문장을 자동 해석하지 않는다.
+Codex 또는 사용자가 원문에서 확인한 guidance를 저장한다. 회계기간·범위·통화·단위가 모두 같은 직전 snapshot만 비교해 `FIRST_SNAPSHOT`, `RAISED`, `MAINTAINED`, `LOWERED`, `UNKNOWN`을 반환한다. 기존 snapshot은 있지만 동일 기준의 snapshot이 없으면 `NOT_COMPARABLE`을 반환한다. Python은 filing 문장을 자동 해석하지 않는다.
 
 #### Catalyst 저장
 

@@ -211,6 +211,21 @@ def compare_evidence(evidence_items: list[dict]) -> dict:
             "shares_cagr": business_quality.get(
                 "shareholder_and_balance_sheet", {},
             ).get("shares_cagr", {}).get("value"),
+            "roic_latest": business_quality.get(
+                "returns_on_capital", {},
+            ).get("roic", {}).get("latest"),
+            "sbc_to_revenue_latest": business_quality.get(
+                "capital_allocation", {},
+            ).get("sbc_to_revenue", {}).get("latest"),
+            "working_capital_to_revenue_latest": business_quality.get(
+                "working_capital", {},
+            ).get("working_capital_to_revenue", {}).get("latest"),
+            "goodwill_to_assets_latest": business_quality.get(
+                "ma_dependence", {},
+            ).get("goodwill_to_assets", {}).get("latest"),
+            "interest_coverage_latest": business_quality.get(
+                "shareholder_and_balance_sheet", {},
+            ).get("interest_coverage", {}).get("latest"),
             "fundamentals_filed_at": fundamentals.get("data_filed_at"),
             "currency": fundamentals.get("currency"),
             "eps_consensus": expectations.get("eps", {}).get("mean"),

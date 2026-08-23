@@ -32,9 +32,11 @@ Focused Skills keep the analysis axes separate:
 
 ## Data lifecycle
 
-Provider responses are cached by TTL and normalized before storage. `fundamental_snapshots` is the only SEC source and uses actual filing dates to prevent look-ahead bias.
+Provider responses are cached by TTL and normalized before storage. `fundamental_snapshots` is the only canonical SEC fact source and uses actual filing dates to prevent look-ahead bias. It also stores the selected XBRL concept for expanded business-quality facts so alias choices remain auditable.
 
-`estimate_snapshots`, `guidance_snapshots`, and `investment_analysis` are append-only. The repository targets newly created databases; schema compatibility with older local DuckDB files is not maintained.
+`estimate_snapshots`, `guidance_snapshots`, and `investment_analysis` are append-only. Schema changes are applied through ordered migrations.
+
+Guidance source discovery only identifies Item 2.02 8-K filing pages. Codex selects the relevant exhibit and normalizes the original language; Python never interprets filing prose or writes a guidance snapshot automatically.
 
 ## Public interface
 
@@ -42,6 +44,7 @@ The CLI has three domains plus `doctor`:
 
 - `data`: fetch and inspect company/market inputs
 - `data quality`: compute score-free, point-in-time business-quality inputs from canonical annual filings
+- `data guidance-sources`: discover SEC earnings-release source candidates without interpreting or saving guidance
 - `data evidence/compare`: compose source-backed inputs, including business-quality metrics, and peer rows without a score
 - `valuation`: multiples, reverse DCF, scenarios
 - `analysis prepare`: combine prior thesis, changes, and current evidence

@@ -15,7 +15,7 @@ uv run thesis data evidence <TICKER>
 uv run thesis data compare <TICKER_A> <TICKER_B> [TICKER_C...]
 ```
 
-`fetch`는 가격과 SEC point-in-time snapshot만 저장한다. 컨센서스는 별도 API와 snapshot 주기가 있으므로 `expectations` Skill이 담당한다.
+`fetch`는 가격과 SEC point-in-time snapshot만 저장한다. 기본 재무와 함께 SEC가 보고한 ROIC 입력, SBC·자사주 매입, 운전자본, goodwill·인수 현금흐름, 이자비용 및 선택한 XBRL concept를 저장한다. 기존 DB에서 새 축을 분석할 때는 migration 적용 후 `fetch`를 다시 실행한다. 컨센서스는 별도 API와 snapshot 주기가 있으므로 `expectations` Skill이 담당한다.
 
 ## 한국 종목
 

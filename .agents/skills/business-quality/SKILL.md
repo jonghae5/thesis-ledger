@@ -12,13 +12,13 @@ uv run thesis data quality <TICKER> [--as-of YYYY-MM-DD]
 uv run thesis data compare <TICKER> <PEER_A> [PEER_B...]
 ```
 
-`quality`는 여러 연도의 margin, 성장, capex intensity, 현금전환, 주식수 변화와 순부채를 점수 없이 반환한다. `coverage.warnings`와 `unavailable_dimensions`를 먼저 확인하고, 계산되지 않은 ROIC·SBC·운전자본·M&A 지표를 추정으로 채우지 않는다.
+`quality`는 여러 연도의 margin, 성장, capex intensity, 현금전환, ROIC, SBC·자사주 매입, 운전자본, M&A 의존도, 주식수 변화와 순부채·이자보상배율을 점수 없이 반환한다. `coverage.metric_availability`에서 각 계산값을 따로 확인하고, 필요한 SEC fact가 없어 `MISSING`인 값을 추정으로 채우지 않는다. product/geographic segment와 부채 만기는 정형 snapshot에 없으므로 중요하면 원문 footnote를 직접 확인한다.
 
 재무 snapshot이 없거나 오래됐으면 `company-data` 기준에 따라 먼저 갱신한다. 최신 10-K·10-Q·8-K, proxy statement, 기업 IR처럼 정형 데이터에 없는 근거는 Codex가 원문을 직접 확인한다. 웹에서 확인한 중요한 사실에는 날짜와 원문 링크를 붙인다.
 
 ## 역할 경계
 
-- 매출·margin·FCF·부채·주식수의 수집과 `data quality`의 결정론적 계산은 Python이 담당한다.
+- 매출·margin·FCF·부채·주식수와 business-quality 원천 fact의 수집 및 `data quality`의 결정론적 계산은 Python이 담당한다.
 - `business-quality`는 그 숫자와 공시가 사업의 경제성, 지속성, 재투자 여력을 무엇을 의미하는지 해석한다.
 - 컨센서스·revision·guidance는 `expectations`, 가격에 반영된 기대와 가치 범위는 `valuation`이 담당한다.
 - 종합 투자 판단과 thesis 변화는 `investment-analysis`가 담당한다. 이 Skill은 BUY/SELL, 목표가격, 기대수익률 또는 포지션 비중을 만들지 않는다.

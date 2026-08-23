@@ -61,6 +61,21 @@ class FundamentalSnapshotRow(BaseModel):
     cash: Optional[float] = None
     debt: Optional[float] = None
     shares: Optional[float] = None
+    assets: Optional[float] = None
+    stockholders_equity: Optional[float] = None
+    short_term_investments: Optional[float] = None
+    current_debt: Optional[float] = None
+    pretax_income: Optional[float] = None
+    income_tax_expense: Optional[float] = None
+    sbc: Optional[float] = None
+    share_repurchases: Optional[float] = None
+    accounts_receivable: Optional[float] = None
+    inventory: Optional[float] = None
+    accounts_payable: Optional[float] = None
+    goodwill: Optional[float] = None
+    acquisition_cash_paid: Optional[float] = None
+    interest_expense: Optional[float] = None
+    source_concepts: dict[str, str] = Field(default_factory=dict)
     currency: Optional[str] = None
     provenance: Provenance
 
