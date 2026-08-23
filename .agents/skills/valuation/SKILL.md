@@ -23,7 +23,7 @@ uv run thesis valuation sensitivity <TICKER> [OPTIONS]
 - 컨센서스가 명시하는 기간까지만 anchor로 사용하고 이후에는 산업 성숙도와 경쟁을 반영해 fade한다.
 - DCF upside/downside를 모델 기간의 보유수익률이나 연환산 수익률로 표현하지 않는다. probability-weighted value도 시장 consensus 목표가격이 아니다.
 - terminal value 비중이 75%를 넘거나 결과가 할인율에 크게 흔들리면 목표가격보다 민감도와 가정 취약성을 먼저 제시한다.
-- trailing FCF가 음수이거나 운전자본·일회성 항목으로 크게 왜곡되면 계산을 중단하고 정상화 근거부터 확보한다.
+- trailing FCF가 음수이거나 운전자본·일회성 항목으로 크게 왜곡되면(예: capex supercycle) 자동 계산값을 그대로 쓰지 않는다. `scenario`/`sensitivity`의 `--starting-margin`으로 정상화된 시작 FCF margin을 명시적으로 넣고 그 근거(왜 이 값인지)를 함께 밝힌다. 근거 없이 숫자만 바꾸지 않으며, 이 값은 항상 `USER_ASSUMPTION`이지 `MODEL_OUTPUT`이 아니다. `--starting-margin` 없이 손으로 계산한 target price를 저장하지 않는다.
 
 reverse DCF, scenario 또는 sensitivity를 실제로 실행하거나 계산을 설명할 때만 [DCF 모델 명세](references/dcf-model.md)를 읽는다.
 

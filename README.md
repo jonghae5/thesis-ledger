@@ -354,7 +354,9 @@ uv run thesis valuation scenario NVDA \
   --annual-dilution 0.01
 ```
 
-세 확률의 합은 `1.0`이어야 한다. growth는 첫해 성장률이며 terminal growth까지 낮아지고, margin은 마지막 explicit year의 정상화 FCF margin이다. 현재 FCF margin에서 정상화 margin까지 선형으로 이동하며 연간 희석도 반영한다. 각 case는 terminal-value 비중, 마지막 해 매출·FCF, 누적 희석률, 현재가 대비 DCF upside/downside를 반환한다. DCF 현재가치의 upside를 10년 보유수익률로 해석하면 안 된다.
+세 확률의 합은 `1.0`이어야 한다. growth는 첫해 성장률이며 terminal growth까지 낮아지고, margin은 마지막 explicit year의 정상화 FCF margin이다. 시작점은 기본적으로 저장된 trailing FCF margin(TTM 우선, 없으면 연간)이며 현재 FCF margin에서 정상화 margin까지 선형으로 이동하며 연간 희석도 반영한다. 각 case는 terminal-value 비중, 마지막 해 매출·FCF, 누적 희석률, 현재가 대비 DCF upside/downside를 반환한다. DCF 현재가치의 upside를 10년 보유수익률로 해석하면 안 된다.
+
+`--starting-margin`으로 시작 FCF margin을 직접 지정할 수 있다. capex supercycle 등으로 trailing FCF margin이 일시적으로 음수이거나 왜곡됐을 때 정상화 값을 명시적으로 넣기 위한 옵션이며, 응답의 `starting_fcf_margin_source`가 `USER_ASSUMPTION`으로 표시된다. 지정하지 않으면 자동 계산값을 쓰고 `starting_fcf_margin_source`는 데이터의 `financial_basis`(`TTM_DERIVED` 또는 `ANNUAL_FALLBACK`)를 그대로 반환한다.
 
 #### 단계형 DCF 민감도
 
@@ -363,7 +365,7 @@ uv run thesis valuation sensitivity NVDA \
   --growth 0.20 --mature-margin 0.35 --annual-dilution 0.005
 ```
 
-초기 성장률은 terminal growth까지, 현재 FCF margin은 지정한 mature margin까지 선형으로 변한다. 성장률과 할인율을 각각 세 값으로 나눈 3×3 표를 반환하며, 모든 입력은 사용자 가정이다.
+초기 성장률은 terminal growth까지, 현재 FCF margin은 지정한 mature margin까지 선형으로 변한다. 성장률과 할인율을 각각 세 값으로 나눈 3×3 표를 반환하며, 모든 입력은 사용자 가정이다. `scenario`와 동일하게 `--starting-margin`으로 시작 FCF margin을 직접 지정할 수 있다.
 
 ### Analysis
 

@@ -61,8 +61,10 @@ def faded_dcf_breakdown(
     years: int = 10,
 ) -> dict:
     """Return the faded DCF and the diagnostics an investor needs to audit it."""
-    if not 0 <= starting_margin <= 1 or not 0 <= mature_margin <= 1:
-        raise ValueError("margins must be between 0 and 1")
+    if not -1 <= starting_margin <= 1:
+        raise ValueError("starting_margin must be between -1 and 1")
+    if not 0 <= mature_margin <= 1:
+        raise ValueError("mature_margin must be between 0 and 1")
     # Reuse the core validation without duplicating its financial constraints.
     project_enterprise_value(
         base_revenue, starting_margin, initial_growth,

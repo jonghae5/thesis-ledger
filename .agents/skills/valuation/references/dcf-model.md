@@ -23,6 +23,8 @@ uv run thesis valuation scenario <TICKER> \
 
 각 case의 `growth`는 첫해 매출 성장률이고 terminal growth까지 선형으로 낮아진다. `margin`은 마지막 해 정상화 FCF margin이며 현재 trailing margin에서 선형으로 이동한다. 희석주식수는 `annual-dilution`만큼 매년 증가하고 세 확률의 합은 1이어야 한다.
 
+시작 FCF margin은 기본적으로 저장된 trailing 값(TTM 우선, 없으면 연간)을 자동으로 쓴다. `--starting-margin`을 넣으면 이 값을 대체하며 응답의 `starting_fcf_margin_source`가 `USER_ASSUMPTION`으로 바뀐다. trailing FCF가 음수(capex supercycle 등)이면 자동값도 음수로 허용되지만(-100%~100% 범위), 왜곡된 시작점을 그대로 fade 시키면 결과가 왜곡되므로 그런 경우엔 `--starting-margin`으로 정상화 값을 직접 넣는다.
+
 각 case는 target price와 현재가 대비 DCF upside/downside, terminal value 비중, 마지막 해 매출·FCF와 누적 희석률을 반환한다. 전체 결과에는 probability-weighted value가 포함된다.
 
 ## Sensitivity

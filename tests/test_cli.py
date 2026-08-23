@@ -526,6 +526,27 @@ def test_scenario_command_computes_weighted_value(tmp_path, monkeypatch):
     assert out["base"]["final_year_revenue"] > 215938000000.0
 
 
+def test_scenario_command_accepts_starting_margin_override(tmp_path, monkeypatch):
+    db_path = tmp_path / "test.duckdb"
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
+    con = get_connection(db_path)
+    migrate(con)
+    _seed_valuation_fixture(con)
+    con.close()
+
+    result = runner.invoke(app, [
+        "valuation", "scenario", "NVDA",
+        "--bear-growth", "0.10", "--bear-margin", "0.35", "--bear-prob", "0.25",
+        "--base-growth", "0.20", "--base-margin", "0.40", "--base-prob", "0.50",
+        "--bull-growth", "0.30", "--bull-margin", "0.45", "--bull-prob", "0.25",
+        "--annual-dilution", "0.01", "--starting-margin", "0.10",
+    ])
+    assert result.exit_code == 0
+    out = json.loads(result.stdout)
+    assert out["starting_fcf_margin"] == 0.10
+    assert out["starting_fcf_margin_source"] == "USER_ASSUMPTION"
+
+
 def test_sensitivity_command_returns_three_by_three_matrix(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
     monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
@@ -543,9 +564,29 @@ def test_sensitivity_command_returns_three_by_three_matrix(tmp_path, monkeypatch
     assert result.exit_code == 0
     out = json.loads(result.stdout)
     assert out["financial_basis"] == "ANNUAL_FALLBACK"
+    assert out["starting_fcf_margin_source"] == "ANNUAL_FALLBACK"
     assert len(out["discount_rates"]) == 3
     assert len(out["matrix"]) == 3
     assert all(len(row["values_by_discount_rate"]) == 3 for row in out["matrix"])
+
+
+def test_sensitivity_command_accepts_starting_margin_override(tmp_path, monkeypatch):
+    db_path = tmp_path / "test.duckdb"
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
+    con = get_connection(db_path)
+    migrate(con)
+    _seed_valuation_fixture(con)
+    con.close()
+
+    result = runner.invoke(app, [
+        "valuation", "sensitivity", "NVDA",
+        "--growth", "0.20", "--mature-margin", "0.35",
+        "--annual-dilution", "0.01", "--starting-margin", "0.10",
+    ])
+    assert result.exit_code == 0
+    out = json.loads(result.stdout)
+    assert out["starting_fcf_margin"] == 0.10
+    assert out["starting_fcf_margin_source"] == "USER_ASSUMPTION"
 
 
 def test_evidence_command_returns_research_only_package_without_consensus(tmp_path, monkeypatch):

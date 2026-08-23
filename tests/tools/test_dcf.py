@@ -105,6 +105,22 @@ def test_faded_scenario_reports_terminal_value_and_return_diagnostics():
     assert metrics["cumulative_dilution"] == pytest.approx(1.01 ** 10 - 1)
 
 
+def test_faded_dcf_allows_negative_starting_margin_but_not_negative_mature_margin():
+    breakdown = faded_dcf_breakdown(
+        100.0, starting_margin=-0.10, initial_growth=0.10, mature_margin=0.15,
+    )
+    assert breakdown["enterprise_value"] > 0
+
+    with pytest.raises(ValueError, match="mature_margin must be between 0 and 1"):
+        faded_dcf_breakdown(
+            100.0, starting_margin=0.10, initial_growth=0.10, mature_margin=-0.05,
+        )
+    with pytest.raises(ValueError, match="starting_margin must be between -1 and 1"):
+        faded_dcf_breakdown(
+            100.0, starting_margin=-1.5, initial_growth=0.10, mature_margin=0.15,
+        )
+
+
 def test_faded_dcf_uses_initial_growth_in_year_one_and_mature_margin_in_final_year():
     result = faded_dcf_breakdown(
         100.0, starting_margin=0.10, initial_growth=0.20,

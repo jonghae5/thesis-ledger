@@ -60,6 +60,15 @@ def scenario(
     terminal_growth: float = 0.025,
     years: int = 10,
     annual_dilution: float = typer.Option(..., min=0.0, max=0.999999),
+    starting_margin: float | None = typer.Option(
+        None,
+        "--starting-margin",
+        help=(
+            "Override the auto-derived trailing FCF margin (USER_ASSUMPTION). "
+            "Use when trailing FCF margin is negative or distorted (e.g. a capex supercycle) "
+            "and the raw trailing value would otherwise be rejected or misleading."
+        ),
+    ),
     max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS,
 ):
     ticker = ticker.upper()
@@ -82,7 +91,12 @@ def scenario(
             "message": "fundamentals row missing shares/revenue/fcf/debt/cash",
         })
     net_debt = debt - cash
-    starting_margin = fcf / revenue
+    if starting_margin is not None:
+        starting_margin_value = starting_margin
+        starting_margin_source = "USER_ASSUMPTION"
+    else:
+        starting_margin_value = fcf / revenue
+        starting_margin_source = fundamentals_row.get("financial_basis")
     current_price = price_row["close"]
 
     cases = {
@@ -96,7 +110,8 @@ def scenario(
         "model": "FADED_DCF",
         "price": current_price,
         "price_as_of": price_row["date"],
-        "starting_fcf_margin": starting_margin,
+        "starting_fcf_margin": starting_margin_value,
+        "starting_fcf_margin_source": starting_margin_source,
         "terminal_growth": terminal_growth,
         "discount_rate": discount_rate,
         "years": years,
@@ -106,7 +121,7 @@ def scenario(
     try:
         for name, (growth, margin, probability) in cases.items():
             metrics = faded_scenario_metrics(
-                revenue, starting_margin, growth, margin, shares, net_debt,
+                revenue, starting_margin_value, growth, margin, shares, net_debt,
                 current_price, discount_rate, terminal_growth, years, annual_dilution,
             )
             entry = {
@@ -145,6 +160,15 @@ def sensitivity(
     annual_dilution: float = 0.0,
     growth_step: float = 0.03,
     discount_step: float = 0.01,
+    starting_margin: float | None = typer.Option(
+        None,
+        "--starting-margin",
+        help=(
+            "Override the auto-derived trailing FCF margin (USER_ASSUMPTION). "
+            "Use when trailing FCF margin is negative or distorted (e.g. a capex supercycle) "
+            "and the raw trailing value would otherwise be rejected or misleading."
+        ),
+    ),
 ):
     """Return a compact 3x3 faded-growth DCF sensitivity table."""
     ticker = ticker.upper()
@@ -157,7 +181,12 @@ def sensitivity(
         cash = fundamentals_row.get("cash")
         if not revenue or fcf is None or not shares or debt is None or cash is None:
             raise ValueError("fundamentals row missing revenue/fcf/shares/debt/cash")
-        starting_margin = fcf / revenue
+        if starting_margin is not None:
+            starting_margin_value = starting_margin
+            starting_margin_source = "USER_ASSUMPTION"
+        else:
+            starting_margin_value = fcf / revenue
+            starting_margin_source = fundamentals_row.get("financial_basis")
         growth_values = [growth - growth_step, growth, growth + growth_step]
         discount_values = [discount_rate - discount_step, discount_rate, discount_rate + discount_step]
         matrix = []
@@ -165,7 +194,7 @@ def sensitivity(
             values = {}
             for rate in discount_values:
                 values[f"{rate:.4f}"] = faded_target_price(
-                    revenue, starting_margin, growth_value, mature_margin,
+                    revenue, starting_margin_value, growth_value, mature_margin,
                     shares, debt - cash, rate, terminal_growth, years, annual_dilution,
                 )
             matrix.append({"initial_growth": growth_value, "values_by_discount_rate": values})
@@ -175,7 +204,8 @@ def sensitivity(
     typer.echo(json.dumps({
         "ticker": ticker,
         "financial_basis": fundamentals_row.get("financial_basis"),
-        "starting_fcf_margin": starting_margin,
+        "starting_fcf_margin": starting_margin_value,
+        "starting_fcf_margin_source": starting_margin_source,
         "mature_fcf_margin": mature_margin,
         "terminal_growth": terminal_growth,
         "years": years,
