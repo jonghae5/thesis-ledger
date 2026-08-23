@@ -5,7 +5,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
 SKILL_NAMES = {
-    "investment-analysis", "company-data", "expectations", "valuation", "portfolio",
+    "investment-analysis", "company-data", "expectations", "valuation",
     "macro-context",
     "investor-policy",
 }
@@ -27,7 +27,7 @@ def test_every_skill_has_frontmatter_and_current_cli_paths():
         combined.append(text)
 
     all_text = "\n".join(combined)
-    for command_group in ("data", "valuation", "analysis", "portfolio"):
+    for command_group in ("data", "valuation", "analysis"):
         assert f"thesis {command_group}" in all_text
 
 

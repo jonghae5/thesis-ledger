@@ -22,14 +22,6 @@ class CompanyRow(BaseModel):
     exchange: Optional[str] = None
 
 
-class HoldingRow(BaseModel):
-    ticker: str = Field(pattern=r"^[A-Z0-9.-]{1,15}$")
-    shares: float = Field(gt=0)
-    avg_cost: float = Field(ge=0)
-    opened_at: date
-    sector: Optional[str] = None
-
-
 class PriceRow(BaseModel):
     ticker: str = Field(pattern=r"^[A-Z0-9.-]{1,15}$")
     date: date

@@ -64,12 +64,12 @@ def test_macro_command_reads_stored_context(tmp_path, monkeypatch):
     assert payload["groups"]["sentiment_stress"]["VIX"]["state"] == "EXTREME_STRESS"
 
 
-def test_root_help_exposes_only_four_domains_and_doctor():
+def test_root_help_exposes_only_three_domains_and_doctor():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ("data", "valuation", "analysis", "portfolio", "doctor"):
+    for command in ("data", "valuation", "analysis", "doctor"):
         assert command in result.stdout
-    for legacy_command in ("seed-watchlist", "save-analysis", "add-holding"):
+    for legacy_command in ("seed-watchlist", "save-analysis", "add-holding", "portfolio"):
         assert legacy_command not in result.stdout
 
 
@@ -821,84 +821,6 @@ def test_change_since_command_errors_without_stored_prices(tmp_path, monkeypatch
     result = runner.invoke(app, ["analysis", "change-since", "NVDA", "--since-date", "2026-07-22"])
     assert result.exit_code == 1
     assert json.loads(result.stdout)["status"] == "ERROR"
-
-
-from src.models.schemas import HoldingRow
-
-
-def test_add_holding_command_inserts_row(tmp_path, monkeypatch):
-    db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
-
-    result = runner.invoke(app, [
-        "portfolio", "add", "NVDA", "--shares", "10", "--avg-cost", "150.0",
-        "--opened-at", "2026-01-15", "--sector", "Semiconductors",
-    ])
-    assert result.exit_code == 0
-    out = json.loads(result.stdout)
-    assert out["ticker"] == "NVDA"
-    assert out["saved"] is True
-
-    con = get_connection(db_path)
-    count = con.execute("SELECT COUNT(*) FROM holdings").fetchone()[0]
-    assert count == 1
-
-
-def test_remove_holding_command_reports_removed_flag(tmp_path, monkeypatch):
-    db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
-    con = get_connection(db_path)
-    migrate(con)
-    repository.upsert_holding(con, HoldingRow(ticker="NVDA", shares=10.0, avg_cost=150.0, opened_at=date(2026, 1, 15)))
-    con.close()
-
-    result = runner.invoke(app, ["portfolio", "remove", "NVDA"])
-    assert result.exit_code == 0
-    assert json.loads(result.stdout)["removed"] is True
-
-    result2 = runner.invoke(app, ["portfolio", "remove", "NVDA"])
-    assert json.loads(result2.stdout)["removed"] is False
-
-
-def test_portfolio_command_summarizes_positions_from_stored_prices(tmp_path, monkeypatch):
-    db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
-    con = get_connection(db_path)
-    migrate(con)
-    repository.upsert_holding(con, HoldingRow(ticker="NVDA", shares=10.0, avg_cost=150.0, opened_at=date(2026, 1, 15), sector="Semiconductors"))
-    con.execute(
-        "INSERT INTO prices VALUES (?, ?, 214, 214, 214, 214.72, 1000, 'yahoo_finance', NULL, ?, ?)",
-        ["NVDA", date(2026, 8, 22), datetime.now(timezone.utc), date(2026, 8, 22)],
-    )
-    con.close()
-
-    result = runner.invoke(app, ["portfolio", "show"])
-    assert result.exit_code == 0
-    out = json.loads(result.stdout)
-    assert out["top_holding_ticker"] == "NVDA"
-    assert out["positions"][0]["market_value"] == pytest.approx(10.0 * 214.72)
-
-
-def test_portfolio_command_errors_when_holding_has_no_stored_price(tmp_path, monkeypatch):
-    db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
-    con = get_connection(db_path)
-    migrate(con)
-    repository.upsert_holding(con, HoldingRow(ticker="NVDA", shares=10.0, avg_cost=150.0, opened_at=date(2026, 1, 15)))
-    con.close()
-
-    result = runner.invoke(app, ["portfolio", "show"])
-    assert result.exit_code == 1
-    assert json.loads(result.stdout)["status"] == "ERROR"
-
-
-def test_portfolio_command_reports_no_holdings(tmp_path, monkeypatch):
-    db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
-
-    result = runner.invoke(app, ["portfolio", "show"])
-    assert result.exit_code == 0
-    assert json.loads(result.stdout)["status"] == "NO_HOLDINGS"
 
 
 def test_doctor_fails_commercial_mode_without_licenses(tmp_path, monkeypatch):

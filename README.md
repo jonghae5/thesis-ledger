@@ -138,17 +138,6 @@ uv run thesis data compare NVDA AMD AVGO
 
 `compare`는 성장률, FCF margin, 순부채, momentum, 변동성, revision, multiple, implied growth를 같은 필드로 나란히 보여준다. 임의의 종합점수나 자동 순위는 만들지 않는다.
 
-### 주간 포트폴리오 점검
-
-```bash
-uv run thesis data fetch NVDA
-uv run thesis data fetch AAPL
-uv run thesis data fetch SPY
-uv run thesis portfolio show
-```
-
-SPY 가격이 저장되어 있고 최신이면 포트폴리오 beta도 계산한다.
-
 ## Evidence 품질 해석
 
 ```bash
@@ -199,7 +188,6 @@ uv run thesis --help
 uv run thesis data --help
 uv run thesis valuation --help
 uv run thesis analysis --help
-uv run thesis portfolio --help
 ```
 
 ### Data
@@ -457,65 +445,27 @@ uv run thesis analysis save NVDA \
 
 재현성 확인을 위해 `model-name`, `model-version`, `prompt-version`, `input-snapshot-json`을 함께 제공하는 것을 권장한다. 빠지면 저장은 되지만 `audit_complete=false`가 반환되고 `doctor`가 경고할 수 있다.
 
-### Portfolio
+### 보유정보와 비중 판단
 
-개인별 비중 판단이 필요하면 예시 파일을 복사해 투자 원칙을 기록한다.
+보유종목 원장은 저장하지 않는다. 종목 조사나 비중 판단이 필요할 때 현재 수량·평균단가·투자 가능 자산을 Codex에 제공하면 해당 분석에서만 사용한다.
+
+개인별 투자기간·손실 감내·종목 및 섹터 상한처럼 자주 바뀌지 않는 원칙은 예시 파일을 복사해 기록할 수 있다.
 
 ```bash
 cp config/investor-policy.example.json config/investor-policy.json
 ```
 
-투자기간·비상자금·최대 종목 및 섹터 비중·허용 drawdown만 기록한다. 이 값은 강제 최적값이 아니라 `USER_ASSUMPTION` 상한으로 사용된다.
-
-#### 보유종목 등록 또는 갱신
-
-```bash
-uv run thesis portfolio add NVDA \
-  --shares 10 \
-  --avg-cost 150 \
-  --opened-at 2026-01-15 \
-  --sector Semiconductors
-```
-
-같은 ticker를 다시 등록하면 기존 row가 새 값으로 교체된다. 추가매수 lot이나 거래원장을 자동 계산하지 않으므로 사용자가 새 shares와 평균단가를 계산해야 한다.
-
-#### 보유종목 삭제
-
-```bash
-uv run thesis portfolio remove NVDA
-```
-
-보유 row만 삭제하며 가격·재무·분석 이력은 삭제하지 않는다.
-
-#### 포트폴리오 조회
-
-```bash
-uv run thesis portfolio show
-uv run thesis portfolio show --max-price-age-days 14
-```
-
-계산 항목:
-
-- 종목별 market value, cost basis, 미실현 수익률, weight
-- sector exposure와 최대 보유 비중
-- 공통 가격 이력이 충분할 때 volatility와 max drawdown
-- concentration HHI와 effective number of positions
-- 종목 간 correlation
-- SPY 데이터가 있을 때 beta
-
-모든 보유종목의 최신 가격이 필요하다. 현금, 환율, 세금, 수수료, 배당, 거래 lot, 옵션, 공매도는 지원하지 않는다.
+정책 값은 객관적 최적값이 아니라 `USER_ASSUMPTION` 상한으로 취급한다.
 
 ### Doctor
 
 ```bash
 uv run thesis doctor
-uv run thesis doctor --max-price-age-days 14
 ```
 
 다음을 검사한다.
 
 - 상용 데이터 provider 라이선스 선언
-- 보유종목 가격 freshness
 - SEC point-in-time snapshot 존재 여부
 - 저장된 투자 메모의 재현성 metadata 누락
 

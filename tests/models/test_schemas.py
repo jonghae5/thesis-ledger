@@ -77,12 +77,6 @@ def test_estimate_snapshot_row_and_guidance_row_and_investment_analysis_and_cata
     CompanyRow(ticker="NVDA", name="NVIDIA Corporation")
 
 
-def test_holding_rejects_non_positive_position():
-    with pytest.raises(ValidationError):
-        from src.models.schemas import HoldingRow
-        HoldingRow(ticker="NVDA", shares=-1, avg_cost=100, opened_at=date(2026, 1, 1))
-
-
 def test_guidance_comparability_metadata_must_be_complete():
     with pytest.raises(ValidationError, match="comparability metadata"):
         GuidanceSnapshotRow(

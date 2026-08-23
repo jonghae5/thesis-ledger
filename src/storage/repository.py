@@ -5,7 +5,7 @@ import duckdb
 
 from src.models.schemas import (
     CatalystRow, CompanyRow, EstimateSnapshotRow, FundamentalSnapshotRow,
-    GuidanceSnapshotRow, HoldingRow, InvestmentAnalysisRow, MacroSnapshotRow, PriceRow,
+    GuidanceSnapshotRow, InvestmentAnalysisRow, MacroSnapshotRow, PriceRow,
 )
 
 
@@ -430,31 +430,4 @@ def get_investment_analysis_history(con: duckdb.DuckDBPyConnection, ticker: str,
     result = [dict(zip(cols, r)) for r in rows]
     for r in result:
         r["created_at"] = r["created_at"].isoformat()
-    return result
-
-
-def upsert_holding(con: duckdb.DuckDBPyConnection, row: HoldingRow) -> None:
-    con.execute(
-        """
-        INSERT INTO holdings (ticker, shares, avg_cost, opened_at, sector)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT (ticker) DO UPDATE SET
-            shares = excluded.shares, avg_cost = excluded.avg_cost,
-            opened_at = excluded.opened_at, sector = excluded.sector
-        """,
-        [row.ticker, row.shares, row.avg_cost, row.opened_at, row.sector],
-    )
-
-
-def remove_holding(con: duckdb.DuckDBPyConnection, ticker: str) -> bool:
-    result = con.execute("DELETE FROM holdings WHERE ticker = ? RETURNING ticker", [ticker]).fetchall()
-    return len(result) > 0
-
-
-def get_holdings(con: duckdb.DuckDBPyConnection) -> List[dict]:
-    cols = ["ticker", "shares", "avg_cost", "opened_at", "sector"]
-    rows = con.execute(f"SELECT {', '.join(cols)} FROM holdings ORDER BY ticker").fetchall()
-    result = [dict(zip(cols, r)) for r in rows]
-    for r in result:
-        r["opened_at"] = r["opened_at"].isoformat()
     return result

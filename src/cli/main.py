@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from src.models.enums import Decision, ProviderStatus
 from src.models.schemas import (
     CatalystRow, CompanyRow, EstimateSnapshotRow, FundamentalSnapshotRow, GuidanceSnapshotRow,
-    HoldingRow, InvestmentAnalysisRow, MacroSnapshotRow, PriceRow, Provenance,
+    InvestmentAnalysisRow, MacroSnapshotRow, PriceRow, Provenance,
 )
 from src.providers.alpha_vantage import AlphaVantageEstimateProvider, parse_earnings_estimates, parse_earnings_surprises
 from src.providers.finnhub import FinnhubEarningsProvider, FinnhubNewsProvider
@@ -42,7 +42,6 @@ from src.tools.catalysts import merge_catalysts
 from src.tools.change import compute_change_since
 from src.tools.dcf import faded_scenario_metrics, faded_target_price, probability_weighted_value
 from src.tools.expectations import compute_earnings_surprise_summary, select_fiscal_year_estimate
-from src.tools.portfolio import compute_portfolio_risk, summarize_portfolio
 from src.tools.revisions import compute_revision_metrics
 
 load_dotenv()
@@ -51,11 +50,9 @@ app = typer.Typer()
 data_app = typer.Typer(help="Fetch and inspect market/company data.")
 valuation_app = typer.Typer(help="Run deterministic valuation calculations.")
 analysis_app = typer.Typer(help="Persist and inspect investment-analysis memory.")
-portfolio_app = typer.Typer(help="Manage and inspect the research portfolio.")
 app.add_typer(data_app, name="data")
 app.add_typer(valuation_app, name="valuation")
 app.add_typer(analysis_app, name="analysis")
-app.add_typer(portfolio_app, name="portfolio")
 
 DB_PATH: Path = DEFAULT_DB_PATH
 
@@ -879,73 +876,8 @@ def prepare(ticker: str, max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS):
         raise typer.Exit(code=1)
 
 
-@portfolio_app.command("add")
-def add_holding(
-    ticker: str,
-    shares: float = typer.Option(...),
-    avg_cost: float = typer.Option(...),
-    opened_at: str = typer.Option(...),
-    sector: Optional[str] = None,
-):
-    ticker = ticker.upper()
-    con = _connect()
-    repository.upsert_holding(con, HoldingRow(
-        ticker=ticker, shares=shares, avg_cost=avg_cost,
-        opened_at=date_cls.fromisoformat(opened_at), sector=sector,
-    ))
-    typer.echo(json.dumps({"ticker": ticker, "saved": True}))
-
-
-@portfolio_app.command("remove")
-def remove_holding(ticker: str):
-    ticker = ticker.upper()
-    con = _connect()
-    removed = repository.remove_holding(con, ticker)
-    typer.echo(json.dumps({"ticker": ticker, "removed": removed}))
-
-
-@portfolio_app.command("show")
-def portfolio(max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS):
-    con = _connect()
-    holdings = repository.get_holdings(con)
-    if not holdings:
-        typer.echo(json.dumps({"status": "NO_HOLDINGS", "message": "no holdings saved - run 'portfolio add' first"}))
-        return
-
-    prices: dict = {}
-    price_history: dict = {}
-    missing: list = []
-    for h in holdings:
-        rows = repository.get_latest_prices(con, h["ticker"], limit=400)
-        if rows:
-            try:
-                prices[h["ticker"]] = _require_fresh_price(
-                    rows, h["ticker"], max_price_age_days,
-                )["close"]
-                price_history[h["ticker"]] = rows
-            except ValueError:
-                missing.append(h["ticker"])
-        else:
-            missing.append(h["ticker"])
-
-    if missing:
-        _fail({"status": "ERROR", "message": f"missing or stale price for: {', '.join(missing)} - run 'data fetch' for each first"})
-
-    summary = summarize_portfolio(holdings, prices)
-    spy_rows = repository.get_latest_prices(con, "SPY", limit=400)
-    if spy_rows:
-        try:
-            _require_fresh_price(spy_rows, "SPY", max_price_age_days)
-        except ValueError:
-            spy_rows = []
-    summary["risk"] = compute_portfolio_risk(
-        summary["positions"], price_history, benchmark_rows=spy_rows,
-    )
-    typer.echo(json.dumps(summary))
-
-
 @app.command("doctor")
-def doctor(max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS):
+def doctor():
     """Run production-safety checks without changing investment data."""
     con = _connect()
     failures: list[str] = []
@@ -955,15 +887,6 @@ def doctor(max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS):
         error = commercial_provider_error(provider)
         if error:
             failures.append(error)
-
-    holdings = repository.get_holdings(con)
-    for holding in holdings:
-        ticker = holding["ticker"]
-        rows = repository.get_latest_prices(con, ticker, limit=1)
-        try:
-            _require_fresh_price(rows, ticker, max_price_age_days)
-        except ValueError as exc:
-            failures.append(str(exc))
 
     snapshot_count = con.execute("SELECT COUNT(*) FROM fundamental_snapshots").fetchone()[0]
     if snapshot_count == 0:
@@ -984,7 +907,6 @@ def doctor(max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS):
         "status": status,
         "failures": failures,
         "warnings": warnings,
-        "holdings_checked": len(holdings),
         "fundamental_snapshot_count": snapshot_count,
         "unaudited_analysis_count": unaudited_count,
     }))
