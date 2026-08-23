@@ -18,12 +18,11 @@ Codex가 투자 판단을 orchestration하고, `src/`의 CLI는 데이터 수집
 | 가격, 모멘텀, 매출, 마진, 재무상태 | `company-data` |
 | 컨센서스, revision, guidance, surprise | `expectations` |
 | multiple, reverse DCF, scenario | `valuation` |
-| 개인 투자기간, 손실 감내, 종목·섹터 비중 한도 | `investor-policy` |
 | 금리, 인플레이션, 경기, 신용, VIX, 공포탐욕지수 | `macro-context` |
 
 좁은 질문에는 해당 Skill만 사용한다. 실제 절차와 해석 규칙은 `.agents/skills/<name>/SKILL.md`가 canonical source다. `.claude/skills`는 호환용 symlink다.
 
-보유종목 원장은 관리하지 않는다. 보유 여부·수량·평균단가·투자 가능 자산은 필요한 조사에서 사용자가 제공한 현재 값을 사용한다.
+보유종목 원장이나 투자자 정책 파일은 관리하지 않는다. 보유 여부·수량·평균단가·투자 가능 자산·손실 한도는 필요한 조사에서 사용자가 제공한 현재 값을 사용한다.
 
 ## CLI
 

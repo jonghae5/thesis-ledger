@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 
@@ -7,7 +6,6 @@ SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
 SKILL_NAMES = {
     "investment-analysis", "company-data", "expectations", "valuation",
     "macro-context",
-    "investor-policy",
 }
 
 
@@ -41,11 +39,3 @@ def test_agents_md_references_every_public_skill():
     agents_md = (REPO_ROOT / "AGENTS.md").read_text()
     for name in SKILL_NAMES:
         assert name in agents_md
-
-
-def test_investor_policy_example_is_small_and_valid_json():
-    policy = json.loads((REPO_ROOT / "config" / "investor-policy.example.json").read_text())
-    assert set(policy) == {
-        "base_currency", "investment_horizon_years", "emergency_fund_months",
-        "max_single_position_pct", "max_sector_pct", "max_portfolio_drawdown_pct",
-    }

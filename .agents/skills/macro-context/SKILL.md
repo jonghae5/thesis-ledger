@@ -1,6 +1,6 @@
 ---
 name: macro-context
-description: 금리·인플레이션·고용·신용·금융환경·VIX·Fear & Greed를 수집하고 기업 및 포트폴리오에 전달되는 영향을 해석한다. "매크로 환경 어때", "공포지수 어때", "금리 변화가 이 종목에 어떤 영향이야" 같은 질문에 사용.
+description: 금리·인플레이션·고용·신용·금융환경·VIX·Fear & Greed를 수집하고 기업과 투자 판단에 전달되는 영향을 해석한다. "매크로 환경 어때", "공포지수 어때", "금리 변화가 이 종목에 어떤 영향이야" 같은 질문에 사용.
 ---
 
 # macro-context
@@ -22,4 +22,4 @@ uv run thesis data macro [--as-of YYYY-MM-DD]
 4. Fear & Greed는 투자자의 실제 위험선호와 포지셔닝이 반영된 보조 증거로 사용하되 VIX·momentum·credit과 중복될 수 있음을 밝힌다. 극단적 공포는 저평가, 극단적 탐욕은 고평가를 뜻하지 않는다.
 5. 저장된 snapshot이 없는 과거 날짜는 현재 데이터로 소급해 채우지 않는다. `MISSING`/`PARTIAL`이면 결론 범위를 제한한다.
 
-종합 투자 판단과 사용자가 제공한 현재 보유정보의 영향은 `investment-analysis`, 개인별 비중 한도는 `investor-policy`, 할인율·scenario 계산은 `valuation` Skill과 함께 사용한다.
+종합 투자 판단과 사용자가 제공한 현재 보유정보·손실 한도의 영향은 `investment-analysis`, 할인율·scenario 계산은 `valuation` Skill과 함께 사용한다.

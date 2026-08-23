@@ -1,8 +1,0 @@
-{
-  "base_currency": "KRW",
-  "investment_horizon_years": null,
-  "emergency_fund_months": null,
-  "max_single_position_pct": null,
-  "max_sector_pct": null,
-  "max_portfolio_drawdown_pct": null
-}
