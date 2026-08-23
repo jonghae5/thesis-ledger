@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from src.cli.main import app
 from src.models.enums import ProviderStatus
 from src.models.schemas import EstimateSnapshotRow, FundamentalSnapshotRow, ProviderResult, Provenance
+from src.services import evidence as evidence_service
 from src.storage import repository
 from src.storage.db import get_connection, migrate
 
@@ -619,6 +620,36 @@ def test_prepare_command_returns_evidence_and_no_history_state(tmp_path, monkeyp
     assert out["evidence"]["quality"]["can_decide"] is False
 
 
+def test_prepare_current_freezes_without_returning_prior_analysis(tmp_path, monkeypatch):
+    db_path = tmp_path / "test.duckdb"
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
+    con = get_connection(db_path)
+    migrate(con)
+    _seed_valuation_fixture(con)
+    con.close()
+
+    result = runner.invoke(app, ["analysis", "prepare-current", "NVDA", "--freeze"])
+
+    assert result.exit_code == 0
+    out = json.loads(result.stdout)
+    assert out["independent_assessment"] is True
+    assert "previous_analysis" not in out
+    assert out["evidence_bundle"]["ticker"] == "NVDA"
+    assert len(out["evidence_bundle"]["evidence_sha256"]) == 64
+
+
+def test_compare_prior_rejects_unknown_evidence_bundle(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.cli.common.DB_PATH", tmp_path / "test.duckdb")
+
+    result = runner.invoke(app, [
+        "analysis", "compare-prior", "NVDA",
+        "--evidence-bundle-id", "missing",
+    ])
+
+    assert result.exit_code == 1
+    assert "evidence bundle not found" in json.loads(result.stdout)["message"]
+
+
 from src.models.enums import Decision
 from src.models.schemas import CatalystRow, InvestmentAnalysisRow
 
@@ -800,6 +831,47 @@ def test_save_analysis_command_inserts_and_get_latest_analysis_reads_it_back(tmp
     assert out["expected_return_basis"] == "PRICE_RETURN"
     assert out["expected_return_annualized"] == pytest.approx(1.17 ** 0.5 - 1)
     assert json.loads(out["thesis_json"]) == ["Inference demand underestimated"]
+
+
+def test_save_analysis_uses_frozen_evidence_bundle_and_validates_price(tmp_path, monkeypatch):
+    db_path = tmp_path / "test.duckdb"
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
+    con = get_connection(db_path)
+    migrate(con)
+    bundle = evidence_service.freeze_evidence_bundle(con, "NVDA", {
+        "ticker": "NVDA",
+        "quality": {"can_decide": True},
+        "sections": {"market": {"price": 214.72}},
+    })
+    con.close()
+    args = [
+        "analysis", "save", "NVDA",
+        "--decision", "HOLD", "--confidence", "0.6", "--expected-return", "0.08",
+        "--expected-return-horizon-months", "12", "--expected-return-method", "OTHER",
+        "--expected-return-basis", "PRICE_RETURN", "--price", "214.72",
+        "--thesis-json", "[]", "--variant-perception-json", "{}",
+        "--invalidation-json", "[]", "--evidence-bundle-id", bundle["bundle_id"],
+        "--model-name", "codex", "--model-version", "test",
+        "--prompt-version", "investment-analysis-v3",
+        "--input-snapshot-json", '{"news_evidence":[]}',
+    ]
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["audit_complete"] is True
+    assert payload["evidence_sha256"] == bundle["evidence_sha256"]
+    latest = json.loads(runner.invoke(app, ["analysis", "latest", "NVDA"]).stdout)
+    assert latest["evidence_bundle_id"] == bundle["bundle_id"]
+    snapshot = json.loads(latest["input_snapshot_json"])
+    assert snapshot["supplemental_evidence"] == {"news_evidence": []}
+
+    mismatch_args = args.copy()
+    mismatch_args[mismatch_args.index("214.72")] = "215.00"
+    mismatch = runner.invoke(app, mismatch_args)
+    assert mismatch.exit_code == 1
+    assert json.loads(mismatch.stdout)["message"] == "price does not match frozen evidence bundle"
 
 
 def test_save_analysis_command_rejects_invalid_decision(tmp_path, monkeypatch):

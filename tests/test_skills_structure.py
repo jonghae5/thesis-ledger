@@ -39,3 +39,13 @@ def test_agents_md_references_every_public_skill():
     agents_md = (REPO_ROOT / "AGENTS.md").read_text()
     for name in SKILL_NAMES:
         assert name in agents_md
+
+
+def test_investment_analysis_uses_blind_bundle_workflow_and_advice_contract():
+    skill_dir = SKILLS_DIR / "investment-analysis"
+    text = (skill_dir / "SKILL.md").read_text()
+    assert "analysis prepare-current" in text
+    assert "analysis compare-prior" in text
+    assert "evidence-bundle-id" in text
+    assert "references/advice-contract.md" in text
+    assert (skill_dir / "references" / "advice-contract.md").is_file()

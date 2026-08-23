@@ -13,7 +13,10 @@ from src.models.schemas import (
     PriceRow,
     Provenance,
 )
-from src.services.evidence import build_evidence, compare_evidence, prepare_update
+from src.services.evidence import (
+    build_evidence, compare_evidence, compare_prior, load_evidence_bundle,
+    prepare_current, prepare_update,
+)
 from src.storage import repository
 from src.storage.db import get_connection, migrate
 
@@ -218,3 +221,42 @@ def test_prepare_update_combines_previous_analysis_changes_and_evidence(con):
     assert prepared["previous_analysis"]["decision"] == "HOLD"
     assert prepared["changes_since_previous"]["status"] == "OK"
     assert prepared["evidence"]["quality"]["can_decide"] is True
+
+
+def test_prepare_current_freezes_evidence_without_exposing_prior_analysis(con):
+    _seed_company(con, "AAA")
+    repository.insert_investment_analysis(con, InvestmentAnalysisRow(
+        ticker="AAA", created_at=datetime.now(timezone.utc) - timedelta(days=20),
+        price=95.0, decision=Decision.HOLD, confidence=0.6,
+        expected_return=0.1, thesis_json='["prior"]',
+        variant_perception_json="{}", invalidation_json="[]",
+    ))
+
+    prepared = prepare_current(con, "AAA", freeze=True)
+
+    assert prepared["independent_assessment"] is True
+    assert "previous_analysis" not in prepared
+    bundle = load_evidence_bundle(
+        con, "AAA", prepared["evidence_bundle"]["bundle_id"],
+    )
+    assert bundle["evidence"] == prepared["evidence"]
+    assert len(bundle["evidence_sha256"]) == 64
+
+
+def test_compare_prior_requires_frozen_bundle_and_reveals_previous_analysis(con):
+    _seed_company(con, "AAA")
+    repository.insert_investment_analysis(con, InvestmentAnalysisRow(
+        ticker="AAA", created_at=datetime.now(timezone.utc) - timedelta(days=20),
+        price=95.0, decision=Decision.HOLD, confidence=0.6,
+        expected_return=0.1, thesis_json='["prior"]',
+        variant_perception_json="{}", invalidation_json="[]",
+    ))
+    current = prepare_current(con, "AAA", freeze=True)
+
+    comparison = compare_prior(
+        con, "AAA", current["evidence_bundle"]["bundle_id"],
+    )
+
+    assert comparison["previous_analysis"]["decision"] == "HOLD"
+    assert comparison["current_evidence"] == current["evidence"]
+    assert comparison["changes_since_previous"]["status"] == "OK"

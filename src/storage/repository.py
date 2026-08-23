@@ -152,8 +152,8 @@ def insert_investment_analysis(con: duckdb.DuckDBPyConnection, row: InvestmentAn
              bull_value, base_value, bear_value,
              thesis_json, variant_perception_json, invalidation_json,
              run_id, model_name, model_version, prompt_version,
-             input_snapshot_json, assumptions_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             input_snapshot_json, assumptions_json, evidence_bundle_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
         [row.ticker, row.created_at, row.price, row.decision.value, row.confidence, row.expected_return,
@@ -162,9 +162,43 @@ def insert_investment_analysis(con: duckdb.DuckDBPyConnection, row: InvestmentAn
          row.bull_value, row.base_value, row.bear_value,
          row.thesis_json, row.variant_perception_json, row.invalidation_json,
          row.run_id, row.model_name, row.model_version, row.prompt_version,
-         row.input_snapshot_json, row.assumptions_json],
+         row.input_snapshot_json, row.assumptions_json, row.evidence_bundle_id],
     ).fetchone()
     return result[0]
+
+
+def insert_evidence_bundle(
+    con: duckdb.DuckDBPyConnection,
+    bundle_id: str,
+    ticker: str,
+    created_at,
+    evidence_sha256: str,
+    evidence_json: str,
+) -> None:
+    con.execute(
+        """
+        INSERT INTO evidence_bundles
+            (bundle_id, ticker, created_at, evidence_sha256, evidence_json)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        [bundle_id, ticker, created_at, evidence_sha256, evidence_json],
+    )
+
+
+def get_evidence_bundle(
+    con: duckdb.DuckDBPyConnection,
+    bundle_id: str,
+) -> Optional[dict]:
+    cols = ["bundle_id", "ticker", "created_at", "evidence_sha256", "evidence_json"]
+    row = con.execute(
+        f"SELECT {', '.join(cols)} FROM evidence_bundles WHERE bundle_id = ?",
+        [bundle_id],
+    ).fetchone()
+    if row is None:
+        return None
+    result = dict(zip(cols, row))
+    result["created_at"] = result["created_at"].isoformat()
+    return result
 
 
 def insert_catalyst(con: duckdb.DuckDBPyConnection, row: CatalystRow) -> int:
@@ -375,7 +409,7 @@ def get_latest_investment_analysis(con: duckdb.DuckDBPyConnection, ticker: str) 
             "bull_value", "base_value", "bear_value",
             "thesis_json", "variant_perception_json", "invalidation_json",
             "run_id", "model_name", "model_version", "prompt_version",
-            "input_snapshot_json", "assumptions_json"]
+            "input_snapshot_json", "assumptions_json", "evidence_bundle_id"]
     row = con.execute(
         f"SELECT {', '.join(cols)} FROM investment_analysis WHERE ticker = ? ORDER BY created_at DESC LIMIT 1",
         [ticker],
@@ -394,7 +428,7 @@ def get_investment_analysis_history(con: duckdb.DuckDBPyConnection, ticker: str,
             "bull_value", "base_value", "bear_value",
             "thesis_json", "variant_perception_json", "invalidation_json",
             "run_id", "model_name", "model_version", "prompt_version",
-            "input_snapshot_json", "assumptions_json"]
+            "input_snapshot_json", "assumptions_json", "evidence_bundle_id"]
     rows = con.execute(
         f"SELECT {', '.join(cols)} FROM investment_analysis WHERE ticker = ? ORDER BY created_at DESC LIMIT ?",
         [ticker, limit],

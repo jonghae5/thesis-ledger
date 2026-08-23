@@ -15,11 +15,11 @@ BUY/SELL 생성기가 아니라 fact, market expectation, scenario의 차이와 
 
 ## "업데이트해줘" 실행 순서
 
-1. 가격과 SEC filing을 갱신하고 업데이트 패키지를 만든다.
+1. 가격과 SEC filing을 갱신하고 이전 분석을 포함하지 않은 현재 evidence로 품질을 먼저 확인한다. 독립 판단을 작성하기 전에는 `analysis prepare`, `analysis latest`, `analysis history`로 이전 결론을 읽지 않는다.
 
 ```bash
 uv run thesis data fetch <TICKER>
-uv run thesis analysis prepare <TICKER>
+uv run thesis analysis prepare-current <TICKER>
 ```
 
 macro가 없거나 stale이고 질문의 결론에 중요할 때만 `data macro-fetch` 후 prepare를 다시 실행한다.
@@ -28,12 +28,24 @@ macro가 없거나 stale이고 질문의 결론에 중요할 때만 `data macro-
 
 ```bash
 uv run thesis data expectations <TICKER>
-uv run thesis analysis prepare <TICKER>
+uv run thesis analysis prepare-current <TICKER>
 ```
 
 3. 종합 업데이트, 최신 뉴스, catalyst 또는 실적 이후 변화를 다룰 때는 [뉴스와 catalyst 조사](references/news-and-catalysts.md)를 읽고 웹 원문을 확인한다. 좁은 재무·valuation 질문에는 이 절차를 자동으로 확장하지 않는다.
 
-4. `evidence.quality`의 세 축만 사용한다.
+4. 필요한 현재 근거가 준비되면 immutable evidence bundle을 만들고, 이전 thesis를 보지 않은 상태에서 현재의 기대 대비 차이·valuation·반대 근거·무효화 조건을 먼저 작성한다.
+
+```bash
+uv run thesis analysis prepare-current <TICKER> --freeze
+```
+
+그 후 반환된 `bundle_id`로만 이전 분석을 공개해 독립 판단과 비교한다. 이전 결론은 현재 판단의 출발점이 아니라 `CONFIRMED | WEAKENING | INVALIDATED | UNKNOWN` 비교 대상이다.
+
+```bash
+uv run thesis analysis compare-prior <TICKER> --evidence-bundle-id BUNDLE_ID
+```
+
+5. `evidence.quality`의 세 축만 사용한다.
 
 - `completeness`: 전체 입력의 완전성인 `COMPLETE/PARTIAL/INSUFFICIENT`. 판단 허용 여부로 사용하지 않는다.
 - `can_research`: false면 판단과 저장을 중단하고 필요한 핵심 입력을 알린다.
@@ -41,7 +53,7 @@ uv run thesis analysis prepare <TICKER>
 
 `can_decide`는 `CONSENSUS_REVISION` 또는 `GUIDANCE_VS_PRICE_IMPLIED`처럼 `expectation_anchors`에 검증 가능한 경로가 있을 때만 true다. `cannot_conclude`에 든 항목은 다른 축이 충분해도 결론 내리지 않는다.
 
-5. Codex가 다음을 정성적으로 판단한다.
+6. Codex가 다음을 정성적으로 판단한다.
 
 - 시장 관점과 다른 근거가 없으면 `NO_VARIANT_PERCEPTION`이라고 쓴다.
 - consensus와 다른 주장에는 `시장이 믿는 것 → 내가 다르게 보는 것 → 근거 → 확인 시점 → 틀렸음을 인정할 조건`을 모두 붙인다. 하나라도 없으면 투자 thesis가 아니라 조사 가설로 남긴다.
@@ -53,7 +65,7 @@ uv run thesis analysis prepare <TICKER>
 
 보유·추가매수·매도·손절·익절·비중 질문이면 [포지션 관리](references/position-management.md)를 읽는다. 일반 기업 분석에서는 사용자 보유정보를 요구하거나 포지션 조언으로 자동 확장하지 않는다.
 
-6. 사용자가 종합 업데이트나 thesis 기록을 요청했고 `can_decide=true`일 때만 memo를 append한다. 좁은 질문이나 `can_decide=false` 조사 결과는 저장하지 않는다. `input_snapshot_json`에는 판단에 사용한 정량 스냅샷과 중요한 `news_evidence`의 날짜·제목·URL·성격을 포함한다.
+7. 사용자가 종합 업데이트나 thesis 기록을 요청했고 `can_decide=true`일 때만 memo를 append한다. 좁은 질문이나 `can_decide=false` 조사 결과는 저장하지 않는다. `evidence_bundle_id`는 독립 판단에 사용한 frozen bundle을 가리킨다. `input_snapshot_json`에는 bundle 밖에서 확인한 중요한 `news_evidence`의 날짜·제목·URL·성격만 supplemental evidence로 포함한다.
 
 ```bash
 uv run thesis analysis save <TICKER> \
@@ -62,15 +74,16 @@ uv run thesis analysis save <TICKER> \
   --expected-return-method PROBABILITY_WEIGHTED_SCENARIO \
   --expected-return-basis PRICE_RETURN --price 200 \
   --thesis-json '[]' --variant-perception-json '{}' --invalidation-json '[]' \
+  --evidence-bundle-id BUNDLE_ID \
   --model-name codex --model-version MODEL_VERSION \
-  --prompt-version investment-analysis-v2 --input-snapshot-json '{}'
+  --prompt-version investment-analysis-v3 --input-snapshot-json '{}'
 ```
 
 `expected-return`은 `expected-return-horizon-months` 동안의 누적 기대수익률이며 CLI가 연환산 값을 함께 저장한다. 방법은 `PROBABILITY_WEIGHTED_SCENARIO | BASE_CASE_TARGET | DCF_IRR | OTHER`, 기준은 배당 제외 `PRICE_RETURN` 또는 배당 포함 `TOTAL_RETURN` 중 하나다. 기간·방법·기준이 없으면 방향성 분석을 저장하지 않는다. 서로 다른 기간의 누적 수익률을 직접 비교하지 말고 연환산 값과 bear downside를 함께 본다.
 
 `decision`은 `STRONG_BUY | ACCUMULATE | HOLD | WATCH | REDUCE | EXIT`. 저장된 숫자형 `confidence`는 예측 확률이 아니라 legacy 주관값이므로 사용자에게 확률처럼 제시하지 않는다. 최종 답변에서는 근거 품질을 `충분/부분적/결론 불가`로 표현한다. 숫자에는 기준일과 `FACT/ESTIMATE/MODEL_OUTPUT/LLM_INFERENCE/USER_ASSUMPTION` 성격을 명확히 표시한다.
 
-답변은 질문에 직접 필요한 축만 사용한다.
+답변은 질문에 직접 필요한 축만 사용한다. 신규 매수·추가매수·보유·축소·매도처럼 행동 판단을 요청하면 [투자 조언 출력 계약](references/advice-contract.md)을 읽고 적용한다.
 
 - 전체 업데이트: 변경된 사실 → 기대 변화 → 중요한 business quality 변화 → 반대 근거 → 가격에 반영된 기대 → thesis 상태 → 판단·리스크 → 무효화 조건 → 다음 이벤트. Quality가 thesis에 중요하지 않거나 새 근거가 없으면 형식적으로 추가하지 않는다.
 - 지금 살 만한지: 기대 대비 차이 → valuation과 bear downside → 판단 → 진입 및 재검토 조건.

@@ -1,3 +1,6 @@
+import hashlib
+import json
+import uuid
 from datetime import date, datetime, timezone
 
 from src.services.research import (
@@ -259,33 +262,106 @@ def compare_evidence(evidence_items: list[dict]) -> dict:
     }
 
 
+def freeze_evidence_bundle(con, ticker: str, evidence: dict) -> dict:
+    """Persist the exact evidence package used for one independent assessment."""
+    ticker = ticker.upper()
+    if evidence.get("ticker") != ticker:
+        raise ValueError("evidence ticker does not match requested ticker")
+    evidence_json = json.dumps(evidence, sort_keys=True, separators=(",", ":"))
+    evidence_sha256 = hashlib.sha256(evidence_json.encode()).hexdigest()
+    bundle_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc)
+    repository.insert_evidence_bundle(
+        con, bundle_id, ticker, created_at, evidence_sha256, evidence_json,
+    )
+    return {
+        "bundle_id": bundle_id,
+        "ticker": ticker,
+        "created_at": created_at.isoformat(),
+        "evidence_sha256": evidence_sha256,
+    }
+
+
+def load_evidence_bundle(con, ticker: str, bundle_id: str) -> dict:
+    ticker = ticker.upper()
+    row = repository.get_evidence_bundle(con, bundle_id)
+    if row is None:
+        raise ValueError(f"evidence bundle not found: {bundle_id}")
+    if row["ticker"] != ticker:
+        raise ValueError("evidence bundle ticker does not match requested ticker")
+    actual_hash = hashlib.sha256(row["evidence_json"].encode()).hexdigest()
+    if actual_hash != row["evidence_sha256"]:
+        raise ValueError("evidence bundle hash mismatch")
+    return {**row, "evidence": json.loads(row["evidence_json"])}
+
+
+def prepare_current(
+    con,
+    ticker: str,
+    max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS,
+    freeze: bool = False,
+) -> dict:
+    """Build current evidence without exposing prior conclusions."""
+    ticker = ticker.upper()
+    evidence = build_evidence(con, ticker, max_price_age_days)
+    bundle = None
+    if freeze and evidence["quality"]["can_research"]:
+        bundle = freeze_evidence_bundle(con, ticker, evidence)
+    return {
+        "ticker": ticker,
+        "independent_assessment": True,
+        "evidence_bundle": bundle,
+        "evidence": evidence,
+    }
+
+
+def _changes_since_previous(con, ticker: str, previous: dict | None) -> dict | None:
+    if previous is None:
+        return None
+    try:
+        price_rows = repository.get_latest_prices(con, ticker, limit=500)
+        all_estimates = repository.get_estimate_snapshots(con, ticker, limit=200)
+        period = resolve_estimate_period(all_estimates) if all_estimates else None
+        estimate_rows = repository.get_estimate_snapshots(
+            con, ticker, limit=200, fiscal_period=period,
+        ) if period else []
+        return {
+            "status": "OK",
+            "fiscal_period": period,
+            **compute_change_since(
+                price_rows,
+                estimate_rows,
+                since_date=date.fromisoformat(previous["created_at"][:10]),
+            ),
+        }
+    except ValueError as exc:
+        return {"status": "MISSING", "message": str(exc)}
+
+
+def compare_prior(con, ticker: str, evidence_bundle_id: str) -> dict:
+    """Reveal prior analysis only after an independent evidence bundle exists."""
+    ticker = ticker.upper()
+    bundle = load_evidence_bundle(con, ticker, evidence_bundle_id)
+    previous = repository.get_latest_investment_analysis(con, ticker)
+    return {
+        "ticker": ticker,
+        "evidence_bundle": {
+            key: bundle[key]
+            for key in ("bundle_id", "ticker", "created_at", "evidence_sha256")
+        },
+        "current_evidence": bundle["evidence"],
+        "previous_analysis": previous,
+        "changes_since_previous": _changes_since_previous(con, ticker, previous),
+    }
+
+
 def prepare_update(con, ticker: str, max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS) -> dict:
     ticker = ticker.upper()
     evidence = build_evidence(con, ticker, max_price_age_days)
     previous = repository.get_latest_investment_analysis(con, ticker)
-    changes = None
-    if previous:
-        try:
-            price_rows = repository.get_latest_prices(con, ticker, limit=500)
-            all_estimates = repository.get_estimate_snapshots(con, ticker, limit=200)
-            period = resolve_estimate_period(all_estimates) if all_estimates else None
-            estimate_rows = repository.get_estimate_snapshots(
-                con, ticker, limit=200, fiscal_period=period,
-            ) if period else []
-            changes = {
-                "status": "OK",
-                "fiscal_period": period,
-                **compute_change_since(
-                    price_rows,
-                    estimate_rows,
-                    since_date=date.fromisoformat(previous["created_at"][:10]),
-                ),
-            }
-        except ValueError as exc:
-            changes = {"status": "MISSING", "message": str(exc)}
     return {
         "ticker": ticker,
         "previous_analysis": previous,
-        "changes_since_previous": changes,
+        "changes_since_previous": _changes_since_previous(con, ticker, previous),
         "evidence": evidence,
     }

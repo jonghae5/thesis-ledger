@@ -60,13 +60,13 @@ Codex는 `.agents/skills`의 지침을 읽고 필요한 CLI만 실행한다. 일
 ```text
 data fetch
     ↓
-analysis prepare
+analysis prepare-current --freeze
     ↓
-품질 게이트 확인
+Codex가 이전 결론 없이 현재 상태 판단
     ↓
-Codex가 변경점/thesis/risk 판단
+analysis compare-prior
     ↓
-analysis save
+Codex가 thesis 변화를 판단하고 analysis save
 ```
 
 ### 한국 주식 MCP
@@ -75,7 +75,7 @@ analysis save
 
 한국 종목 데이터는 현재 외부 조사 근거로만 사용한다. MCP 연간 재무에는 각 숫자의 실제 filing date가 없고 컨센서스·revision도 제공되지 않으므로 `fundamental_snapshots`나 `investment_analysis`에 저장하지 않으며 방향성 판단을 만들지 않는다. MCP에는 종목코드 외의 보유수량·평균단가·자산 같은 개인 정보를 보내지 않는다.
 
-CLI 자체는 LLM을 호출하지 않는다. 터미널에서 `analysis prepare`를 실행하면 Codex가 읽을 근거 패키지만 만들어진다.
+CLI 자체는 LLM을 호출하지 않는다. 터미널에서 `analysis prepare-current`를 실행하면 Codex가 읽을 현재 근거 패키지만 만들어진다.
 
 ## 환경변수
 
@@ -105,19 +105,20 @@ LICENSED_DATA_PROVIDERS=alpha_vantage,finnhub
 ```bash
 uv run thesis data fetch NVDA
 uv run thesis data expectations NVDA       # API key가 있을 때
-uv run thesis analysis prepare NVDA
+uv run thesis analysis prepare-current NVDA --freeze
 ```
 
-`prepare` 결과의 `status`가 `READY`인지 확인한 뒤 Codex에게 메모 작성을 요청한다.
+`prepare-current`의 quality gate를 확인한 뒤 Codex가 이전 결론 없이 현재 상태를 먼저 평가한다.
 
 ### 기존 종목 업데이트
 
 ```bash
 uv run thesis data fetch NVDA
-uv run thesis analysis prepare NVDA
+uv run thesis analysis prepare-current NVDA --freeze
+uv run thesis analysis compare-prior NVDA --evidence-bundle-id BUNDLE_ID
 ```
 
-`prepare`는 다음을 한 JSON으로 반환한다.
+`prepare-current`는 이전 결론을 제외한 현재 evidence와 immutable bundle ID를 반환한다. 독립 평가가 끝난 후 `compare-prior`가 다음을 반환한다.
 
 - `previous_analysis`: 직전 thesis와 판단
 - `changes_since_previous`: 당시 이후 가격·EPS·매출 컨센서스 변화
@@ -129,7 +130,7 @@ uv run thesis analysis prepare NVDA
 
 ```bash
 uv run thesis data expectations NVDA
-uv run thesis analysis prepare NVDA
+uv run thesis analysis prepare-current NVDA --freeze
 ```
 
 ### 여러 기업 비교
@@ -369,11 +370,14 @@ uv run thesis valuation sensitivity NVDA \
 #### 업데이트 준비
 
 ```bash
+uv run thesis analysis prepare-current NVDA
+uv run thesis analysis prepare-current NVDA --freeze
+uv run thesis analysis compare-prior NVDA --evidence-bundle-id BUNDLE_ID
 uv run thesis analysis prepare NVDA
 uv run thesis analysis prepare NVDA --max-price-age-days 14
 ```
 
-직전 분석, 이후 변화, 현재 evidence를 하나로 합친다. 외부 API는 호출하지 않는다. `evidence.quality.can_research=false`이면 exit code `1`을 반환한다.
+`prepare-current`는 이전 분석을 노출하지 않으며 `--freeze`를 사용하면 현재 evidence와 SHA-256 hash를 append-only bundle로 저장한다. 현재 상태를 독립 평가한 후에만 `compare-prior`로 직전 분석과 이후 변화를 확인한다. 기존 `prepare`는 호환성을 위해 세 항목을 한 번에 반환한다. 외부 API는 호출하지 않으며 `evidence.quality.can_research=false`이면 exit code `1`을 반환한다.
 
 #### 최근 분석과 이력
 
@@ -451,10 +455,11 @@ uv run thesis analysis save NVDA \
   --bull-value 260 \
   --base-value 230 \
   --bear-value 170 \
+  --evidence-bundle-id BUNDLE_ID \
   --model-name codex \
   --model-version MODEL_VERSION \
-  --prompt-version investment-analysis-v1 \
-  --input-snapshot-json '{"price_as_of":"2026-08-21"}' \
+  --prompt-version investment-analysis-v3 \
+  --input-snapshot-json '{"news_evidence":[]}' \
   --assumptions-json '["discount_rate=0.09"]'
 ```
 
@@ -471,7 +476,7 @@ uv run thesis analysis save NVDA \
 
 `confidence`는 0~1이다. `thesis-json`과 `invalidation-json`은 JSON 배열, `variant-perception-json`과 `input-snapshot-json`은 JSON 객체, `assumptions-json`은 JSON 배열이어야 한다. 저장은 append-only다.
 
-재현성 확인을 위해 `model-name`, `model-version`, `prompt-version`, `input-snapshot-json`을 함께 제공하는 것을 권장한다. 빠지면 저장은 되지만 `audit_complete=false`가 반환되고 `doctor`가 경고할 수 있다.
+재현성 확인을 위해 `prepare-current --freeze`가 반환한 `evidence-bundle-id`와 `model-name`, `model-version`, `prompt-version`을 함께 제공한다. CLI는 저장 가격이 frozen evidence의 가격과 같은지 검증한다. `input-snapshot-json`은 bundle 밖에서 확인한 뉴스 같은 supplemental evidence만 담는다. bundle 없이 저장하는 기존 경로는 호환되지만 metadata가 빠지면 `audit_complete=false`가 반환되고 `doctor`가 경고할 수 있다.
 
 ### 보유정보와 비중 판단
 
@@ -554,7 +559,7 @@ uv run thesis data revisions NVDA
 ```bash
 uv run thesis data fetch TICKER
 uv run thesis data expectations TICKER   # API key가 있을 때
-uv run thesis analysis prepare TICKER
+uv run thesis analysis prepare-current TICKER
 ```
 
 ## 테스트

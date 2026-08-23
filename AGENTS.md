@@ -54,6 +54,8 @@ uv run thesis analysis save <TICKER> [OPTIONS]
 uv run thesis analysis latest <TICKER>
 uv run thesis analysis history <TICKER>
 uv run thesis analysis change-since <TICKER> --since-date YYYY-MM-DD
+uv run thesis analysis prepare-current <TICKER> [--freeze]
+uv run thesis analysis compare-prior <TICKER> --evidence-bundle-id BUNDLE_ID
 uv run thesis analysis prepare <TICKER>
 
 uv run thesis doctor

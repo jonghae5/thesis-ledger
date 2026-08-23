@@ -195,6 +195,7 @@ class InvestmentAnalysisRow(BaseModel):
     prompt_version: Optional[str] = None
     input_snapshot_json: Optional[str] = None
     assumptions_json: Optional[str] = None
+    evidence_bundle_id: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_expected_return_metadata(self):

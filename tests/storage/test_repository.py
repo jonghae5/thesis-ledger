@@ -232,6 +232,10 @@ def test_get_latest_investment_analysis_returns_most_recent(con):
 
 
 def test_investment_analysis_persists_reproducibility_metadata(con):
+    repository.insert_evidence_bundle(
+        con, "bundle-1", "NVDA", datetime(2026, 8, 20, tzinfo=timezone.utc),
+        "a" * 64, '{"ticker":"NVDA"}',
+    )
     repository.insert_investment_analysis(con, InvestmentAnalysisRow(
         ticker="NVDA", created_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
         price=214.0, decision=Decision.HOLD, confidence=0.6,
@@ -240,10 +244,13 @@ def test_investment_analysis_persists_reproducibility_metadata(con):
         model_version="gpt-5", prompt_version="investment-analysis-v1",
         input_snapshot_json='{"price_as_of":"2026-08-20"}',
         assumptions_json='["discount_rate=0.09"]',
+        evidence_bundle_id="bundle-1",
     ))
     latest = repository.get_latest_investment_analysis(con, "NVDA")
     assert latest["run_id"] == "run-1"
     assert latest["input_snapshot_json"] == '{"price_as_of":"2026-08-20"}'
+    assert latest["evidence_bundle_id"] == "bundle-1"
+    assert repository.get_evidence_bundle(con, "bundle-1")["ticker"] == "NVDA"
 
 
 def test_get_investment_analysis_history_orders_most_recent_first(con):

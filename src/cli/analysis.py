@@ -1,4 +1,5 @@
 import json
+import math
 import uuid
 from datetime import date, datetime, timezone
 
@@ -143,6 +144,7 @@ def save_analysis(
     prompt_version: str | None = None,
     input_snapshot_json: str | None = None,
     assumptions_json: str | None = None,
+    evidence_bundle_id: str | None = None,
 ):
     ticker = ticker.upper()
     valid_return_methods = {
@@ -197,10 +199,34 @@ def save_analysis(
         ("assumptions_json", assumptions_json or "[]", list),
     ])
 
-    resolved_run_id = run_id or str(uuid.uuid4())
-    audit_complete = all([model_name, model_version, prompt_version, input_snapshot_json])
     con = connect()
-    evidence = evidence_service.build_evidence(con, ticker)
+    frozen_bundle = None
+    if evidence_bundle_id:
+        try:
+            frozen_bundle = evidence_service.load_evidence_bundle(
+                con, ticker, evidence_bundle_id,
+            )
+        except ValueError as exc:
+            fail({"ticker": ticker, "status": "ERROR", "message": str(exc)})
+        evidence = frozen_bundle["evidence"]
+        supplemental_evidence = json.loads(input_snapshot_json or "{}")
+        input_snapshot_json = json.dumps({
+            "evidence_bundle": {
+                "bundle_id": frozen_bundle["bundle_id"],
+                "evidence_sha256": frozen_bundle["evidence_sha256"],
+            },
+            "supplemental_evidence": supplemental_evidence,
+        }, sort_keys=True, separators=(",", ":"))
+        frozen_price = evidence.get("sections", {}).get("market", {}).get("price")
+        if frozen_price is None or not math.isclose(price, frozen_price, rel_tol=1e-12):
+            fail({
+                "ticker": ticker,
+                "status": "ERROR",
+                "message": "price does not match frozen evidence bundle",
+                "expected_price": frozen_price,
+            })
+    else:
+        evidence = evidence_service.build_evidence(con, ticker)
     if not evidence["quality"]["can_decide"]:
         fail({
             "ticker": ticker,
@@ -208,6 +234,11 @@ def save_analysis(
             "message": "directional analysis requires a usable expectation anchor",
             "quality": evidence["quality"],
         })
+    resolved_run_id = run_id or str(uuid.uuid4())
+    audit_complete = all([
+        model_name, model_version, prompt_version,
+        evidence_bundle_id or input_snapshot_json,
+    ])
     repository.insert_investment_analysis(con, InvestmentAnalysisRow(
         ticker=ticker, created_at=datetime.now(timezone.utc), price=price,
         decision=decision_enum, confidence=confidence, expected_return=expected_return,
@@ -220,12 +251,15 @@ def save_analysis(
         run_id=resolved_run_id, model_name=model_name, model_version=model_version,
         prompt_version=prompt_version, input_snapshot_json=input_snapshot_json or "{}",
         assumptions_json=assumptions_json or "[]",
+        evidence_bundle_id=evidence_bundle_id,
     ))
     typer.echo(json.dumps({
         "ticker": ticker,
         "saved": True,
         "run_id": resolved_run_id,
         "audit_complete": audit_complete,
+        "evidence_bundle_id": evidence_bundle_id,
+        "evidence_sha256": frozen_bundle["evidence_sha256"] if frozen_bundle else None,
         "expected_return_annualized": expected_return_annualized,
     }))
 
@@ -284,3 +318,33 @@ def prepare(ticker: str, max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS):
     typer.echo(json.dumps(payload))
     if not payload["evidence"]["quality"]["can_research"]:
         raise typer.Exit(code=1)
+
+
+@analysis_app.command("prepare-current")
+def prepare_current(
+    ticker: str,
+    max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS,
+    freeze: bool = typer.Option(False, help="Persist an immutable evidence bundle."),
+):
+    """Prepare current evidence without exposing prior analysis."""
+    payload = evidence_service.prepare_current(
+        connect(), ticker, max_price_age_days, freeze=freeze,
+    )
+    typer.echo(json.dumps(payload))
+    if not payload["evidence"]["quality"]["can_research"]:
+        raise typer.Exit(code=1)
+
+
+@analysis_app.command("compare-prior")
+def compare_prior(
+    ticker: str,
+    evidence_bundle_id: str = typer.Option(...),
+):
+    """Compare frozen current evidence with the prior thesis."""
+    try:
+        payload = evidence_service.compare_prior(
+            connect(), ticker, evidence_bundle_id,
+        )
+    except ValueError as exc:
+        fail({"ticker": ticker.upper(), "status": "ERROR", "message": str(exc)})
+    typer.echo(json.dumps(payload))

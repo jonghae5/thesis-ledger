@@ -48,6 +48,8 @@ The CLI has three domains plus `doctor`:
 - `data evidence/compare`: compose source-backed inputs, including business-quality metrics, and peer rows without a score
 - `valuation`: multiples, reverse DCF, scenarios
 - `analysis prepare`: combine prior thesis, changes, and current evidence
+- `analysis prepare-current`: build current evidence without exposing prior conclusions and optionally freeze it
+- `analysis compare-prior`: reveal prior analysis only after an immutable current-evidence bundle exists
 - `analysis`: guidance, catalysts, memo history
 - `doctor`: freshness, licensing, and reproducibility checks
 
