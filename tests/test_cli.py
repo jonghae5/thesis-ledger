@@ -415,14 +415,21 @@ def test_scenario_command_computes_weighted_value(tmp_path, monkeypatch):
         "--bear-growth", "0.10", "--bear-margin", "0.35", "--bear-prob", "0.25",
         "--base-growth", "0.20", "--base-margin", "0.40", "--base-prob", "0.50",
         "--bull-growth", "0.30", "--bull-margin", "0.45", "--bull-prob", "0.25",
+        "--annual-dilution", "0.01",
     ])
     assert result.exit_code == 0
     out = json.loads(result.stdout)
+    assert out["model"] == "FADED_DCF"
     assert out["bear"]["probability"] == 0.25
     assert out["bull"]["target_price"] > out["base"]["target_price"] > out["bear"]["target_price"]
     assert out["probability_weighted_value"] == pytest.approx(
         0.25 * out["bear"]["target_price"] + 0.50 * out["base"]["target_price"] + 0.25 * out["bull"]["target_price"]
     )
+    assert out["base"]["initial_revenue_growth"] == 0.20
+    assert out["base"]["mature_fcf_margin"] == 0.40
+    assert 0 < out["base"]["terminal_value_pct"] < 1
+    assert out["base"]["cumulative_dilution"] == pytest.approx(1.01 ** 10 - 1)
+    assert out["base"]["final_year_revenue"] > 215938000000.0
 
 
 def test_sensitivity_command_returns_three_by_three_matrix(tmp_path, monkeypatch):

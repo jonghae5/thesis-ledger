@@ -34,12 +34,13 @@ from src.services.research import (
     reverse_dcf_payload,
     valuation_fundamentals_row,
     valuation_payload,
+    latest_price_record,
 )
 from src.storage import repository
 from src.storage.db import DEFAULT_DB_PATH, get_connection, migrate
 from src.tools.catalysts import merge_catalysts
 from src.tools.change import compute_change_since
-from src.tools.dcf import faded_target_price, probability_weighted_value, scenario_target_price
+from src.tools.dcf import faded_scenario_metrics, faded_target_price, probability_weighted_value
 from src.tools.expectations import compute_earnings_surprise_summary, select_fiscal_year_estimate
 from src.tools.portfolio import compute_portfolio_risk, summarize_portfolio
 from src.tools.revisions import compute_revision_metrics
@@ -537,21 +538,27 @@ def scenario(
     base_growth: float = typer.Option(...), base_margin: float = typer.Option(...), base_prob: float = typer.Option(...),
     bull_growth: float = typer.Option(...), bull_margin: float = typer.Option(...), bull_prob: float = typer.Option(...),
     discount_rate: float = 0.09, terminal_growth: float = 0.025, years: int = 10,
+    annual_dilution: float = typer.Option(..., min=0.0, max=0.999999),
+    max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS,
 ):
     ticker = ticker.upper()
     con = _connect()
     try:
         fundamentals_row = valuation_fundamentals_row(con, ticker)
+        price_row = latest_price_record(con, ticker, max_price_age_days)
     except ValueError as exc:
         _fail({"ticker": ticker, "status": "ERROR", "message": str(exc)})
 
     shares = fundamentals_row.get("shares")
     revenue = fundamentals_row.get("revenue")
+    fcf = fundamentals_row.get("fcf")
     debt = fundamentals_row.get("debt")
     cash = fundamentals_row.get("cash")
-    if not shares or not revenue or debt is None or cash is None:
-        _fail({"ticker": ticker, "status": "ERROR", "message": "fundamentals row missing shares/revenue/debt/cash"})
+    if not shares or not revenue or fcf is None or debt is None or cash is None:
+        _fail({"ticker": ticker, "status": "ERROR", "message": "fundamentals row missing shares/revenue/fcf/debt/cash"})
     net_debt = debt - cash
+    starting_margin = fcf / revenue
+    current_price = price_row["close"]
 
     cases = {
         "bear": (bear_growth, bear_margin, bear_prob),
@@ -561,15 +568,41 @@ def scenario(
     result = {
         "ticker": ticker,
         "financial_basis": fundamentals_row.get("financial_basis"),
+        "model": "FADED_DCF",
+        "price": current_price,
+        "price_as_of": price_row["date"],
+        "starting_fcf_margin": starting_margin,
+        "terminal_growth": terminal_growth,
+        "discount_rate": discount_rate,
+        "years": years,
+        "annual_dilution": annual_dilution,
     }
     scenario_list = []
     try:
         for name, (growth, margin, prob) in cases.items():
-            target_price = scenario_target_price(revenue, margin, growth, shares, net_debt, discount_rate, terminal_growth, years)
-            entry = {"probability": prob, "revenue_growth": growth, "margin": margin, "target_price": target_price}
+            metrics = faded_scenario_metrics(
+                revenue, starting_margin, growth, margin, shares, net_debt,
+                current_price, discount_rate, terminal_growth, years, annual_dilution,
+            )
+            entry = {
+                "probability": prob,
+                "initial_revenue_growth": growth,
+                "mature_fcf_margin": margin,
+                **metrics,
+            }
             result[name] = entry
             scenario_list.append(entry)
         result["probability_weighted_value"] = probability_weighted_value(scenario_list)
+        result["probability_weighted_upside_downside"] = (
+            result["probability_weighted_value"] / current_price - 1
+        )
+        warnings = []
+        base_terminal_value_pct = result["base"]["terminal_value_pct"]
+        if base_terminal_value_pct is not None and base_terminal_value_pct > 0.75:
+            warnings.append("base case terminal value exceeds 75% of enterprise value")
+        if result["base"]["cumulative_dilution"] > 0.10:
+            warnings.append("base case cumulative dilution exceeds 10%")
+        result["warnings"] = warnings
     except ValueError as exc:
         _fail({"ticker": ticker, "status": "ERROR", "message": str(exc)})
 

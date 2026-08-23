@@ -342,10 +342,11 @@ uv run thesis valuation reverse-dcf NVDA \
 uv run thesis valuation scenario NVDA \
   --bear-growth 0.10 --bear-margin 0.35 --bear-prob 0.25 \
   --base-growth 0.20 --base-margin 0.40 --base-prob 0.50 \
-  --bull-growth 0.30 --bull-margin 0.45 --bull-prob 0.25
+  --bull-growth 0.30 --bull-margin 0.45 --bull-prob 0.25 \
+  --annual-dilution 0.01
 ```
 
-세 확률의 합은 `1.0`이어야 한다. growth, margin, probability는 사용자 또는 Codex의 가정이며 Python이 자동 추정하지 않는다. 결과의 probability-weighted value를 객관적 적정가치처럼 사용하면 안 된다.
+세 확률의 합은 `1.0`이어야 한다. growth는 첫해 성장률이며 terminal growth까지 낮아지고, margin은 마지막 explicit year의 정상화 FCF margin이다. 현재 FCF margin에서 정상화 margin까지 선형으로 이동하며 연간 희석도 반영한다. 각 case는 terminal-value 비중, 마지막 해 매출·FCF, 누적 희석률, 현재가 대비 DCF upside/downside를 반환한다. DCF 현재가치의 upside를 10년 보유수익률로 해석하면 안 된다.
 
 #### 단계형 DCF 민감도
 

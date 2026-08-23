@@ -1,6 +1,8 @@
 import pytest
 
 from src.tools.dcf import (
+    faded_dcf_breakdown,
+    faded_scenario_metrics,
     faded_target_price,
     implied_growth_rate,
     probability_weighted_value,
@@ -79,3 +81,31 @@ def test_faded_dcf_is_sensitive_to_growth_margin_and_dilution():
         annual_dilution=0.02,
     )
     assert undiluted > diluted > 0
+
+
+def test_faded_scenario_reports_terminal_value_and_return_diagnostics():
+    breakdown = faded_dcf_breakdown(
+        100.0, starting_margin=0.20, initial_growth=0.15, mature_margin=0.25,
+    )
+    assert breakdown["enterprise_value"] == pytest.approx(
+        breakdown["explicit_period_pv"] + breakdown["terminal_value_pv"]
+    )
+    assert 0 < breakdown["terminal_value_pct"] < 1
+
+    metrics = faded_scenario_metrics(
+        100.0, 0.20, 0.15, 0.25, shares=10.0, net_debt=0.0,
+        current_price=10.0, annual_dilution=0.01,
+    )
+    assert metrics["target_price"] > 0
+    assert metrics["upside_downside"] == pytest.approx(metrics["target_price"] / 10.0 - 1)
+    assert metrics["cumulative_dilution"] == pytest.approx(1.01 ** 10 - 1)
+
+
+def test_faded_dcf_uses_initial_growth_in_year_one_and_mature_margin_in_final_year():
+    result = faded_dcf_breakdown(
+        100.0, starting_margin=0.10, initial_growth=0.20,
+        mature_margin=0.30, terminal_growth=0.02, years=2,
+    )
+    expected_final_revenue = 100.0 * 1.20 * 1.02
+    assert result["final_year_revenue"] == pytest.approx(expected_final_revenue)
+    assert result["final_year_fcf"] == pytest.approx(expected_final_revenue * 0.30)

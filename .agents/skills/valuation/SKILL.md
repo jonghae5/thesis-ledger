@@ -34,21 +34,26 @@ uv run thesis valuation scenario <TICKER> \
   --bear-growth 0.10 --bear-margin 0.35 --bear-prob 0.25 \
   --base-growth 0.20 --base-margin 0.40 --base-prob 0.50 \
   --bull-growth 0.30 --bull-margin 0.45 --bull-prob 0.25 \
+  --annual-dilution 0.01 \
   [--discount-rate 0.09] [--terminal-growth 0.025] [--years 10]
 ```
 
-**중요: growth/margin/probability 숫자는 Codex(너)가 정한다.** Python은 그 가정으로 target_price를 계산할 뿐, bear/base/bull이 뭘 의미해야 하는지 스스로 판단하지 않는다 — `AGENTS.md`의 "Python은 판단 안 함" 원칙 그대로. 세 시나리오 확률의 합은 1.0이어야 한다(아니면 에러).
+`growth`는 첫해 성장률이며 terminal growth까지 선형으로 낮아진다. `margin`은 10년 차 정상화 FCF margin이며 현재 trailing FCF margin에서 선형으로 이동한다. 희석주식수는 `annual-dilution`만큼 매년 증가한다. 세 확률의 합은 1.0이어야 한다.
+
+**중요: growth/margin/probability/dilution 숫자는 Codex(너)가 정한다.** 최근 1년의 최고 성장률·마진을 그대로 장기 가정으로 복사하지 않는다. 컨센서스가 제공하는 명시 전망 기간은 그 범위에서 anchor로 쓰고 이후에는 산업 성숙도와 경쟁을 반영해 fade한다. Python은 가정을 만들지 않는다.
 
 출력 (원본 스펙 §15 그대로):
 ```json
 {
   "ticker": "NVDA",
-  "bear": {"probability": 0.25, "revenue_growth": 0.10, "margin": 0.35, "target_price": 0},
-  "base": {"probability": 0.50, "revenue_growth": 0.20, "margin": 0.40, "target_price": 0},
-  "bull": {"probability": 0.25, "revenue_growth": 0.30, "margin": 0.45, "target_price": 0},
+  "bear": {"probability": 0.25, "initial_revenue_growth": 0.10, "mature_fcf_margin": 0.35, "target_price": 0},
+  "base": {"probability": 0.50, "initial_revenue_growth": 0.20, "mature_fcf_margin": 0.40, "target_price": 0},
+  "bull": {"probability": 0.25, "initial_revenue_growth": 0.30, "mature_fcf_margin": 0.45, "target_price": 0},
   "probability_weighted_value": 0
 }
 ```
+
+각 case는 현재가 대비 DCF upside/downside, terminal value 비중, 마지막 해 매출·FCF, 누적 희석률을 함께 반환한다. DCF는 미래 현금흐름의 현재가치이므로 upside/downside를 10년 보유수익률이나 연환산 수익률로 표현하지 않는다. terminal value 비중이 75%를 넘으면 목표가격보다 할인율·terminal growth 민감도를 먼저 제시한다. probability-weighted value는 의사결정 보조값이지 목표가격 consensus가 아니다.
 
 ### 4. 단계형 DCF 민감도 (`sensitivity`)
 
@@ -61,16 +66,18 @@ uv run thesis valuation sensitivity <TICKER> \
 
 초기 매출 성장률은 terminal growth까지, 현재 FCF margin은 `mature-margin`까지 10년에 걸쳐 선형으로 변한다. 기준 성장률·할인율과 각각 위아래 한 단계의 3×3 target price 표를 반환한다. 입력은 `USER_ASSUMPTION`, 결과는 `MODEL_OUTPUT`이며 점추정 목표가격보다 가정 민감도를 확인하는 데 사용한다.
 
-## DCF 모델 가정 (spec이 명시하지 않아 이 구현이 확정)
-- `years`년(기본 10) explicit 구간 동안 매출이 매년 `growth`로 성장, FCF = 매출 × `fcf_margin`(구간 내내 고정).
+## DCF 모델 가정
+- `scenario`와 `sensitivity`는 `years`년 동안 성장률을 terminal growth까지, FCF margin을 mature margin까지 선형으로 fade한다.
 - terminal value = 마지막 해 FCF × (1+`terminal_growth`) / (`discount_rate` - `terminal_growth`).
 - 전부 `discount_rate`(기본 9%)로 현재가치 할인, 합산 = enterprise value.
 - `discount_rate`는 반드시 `terminal_growth`보다 커야 한다.
 
-`sensitivity`만 성장률과 마진이 선형으로 변하고, 선택한 `annual_dilution`만큼 미래 주식 수를 늘린다. 기존 `reverse-dcf`와 `scenario`의 고정 가정은 비교 가능성을 위해 유지한다.
+`reverse-dcf`만 현재 FCF margin과 고정 성장률을 유지하는 단순 모델이다. 따라서 이를 target price로 쓰지 않고 시장이 요구하는 성장의 대략적인 hurdle로만 사용한다.
+
+은행·보험에는 이 DCF를 사용하지 않고 자본·ROE·P/B 중심으로 분석한다. REIT는 AFFO와 NAV, 원자재 기업은 mid-cycle 가격과 NAV를 우선한다. trailing FCF가 음수이거나 일회성 운전자본으로 크게 왜곡되면 scenario 계산을 중단하고 정상화 FCF 근거를 먼저 확보한다.
 
 ## 의존 데이터
-- 모든 계산은 SEC fundamentals가 필요하므로 최소 한 번 `data fetch`를 실행한다. `multiples`는 가격도 필요하다. `estimate_snapshots`는 forward 지표 계산에만 쓰이며 없으면 해당 필드가 `null`이다.
+- 모든 계산은 SEC fundamentals가 필요하므로 최소 한 번 `data fetch`를 실행한다. `multiples`와 `scenario`는 신선한 가격도 필요하다. `estimate_snapshots`는 forward 지표 계산에만 쓰이며 없으면 해당 필드가 `null`이다.
 
 ## 매크로와 할인율
 
