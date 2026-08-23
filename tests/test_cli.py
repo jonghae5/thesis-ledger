@@ -655,7 +655,9 @@ def test_save_analysis_command_inserts_and_get_latest_analysis_reads_it_back(tmp
 
     save_result = runner.invoke(app, [
         "analysis", "save", "NVDA",
-        "--decision", "ACCUMULATE", "--confidence", "0.72", "--expected-return", "0.17", "--price", "214.72",
+        "--decision", "ACCUMULATE", "--confidence", "0.72", "--expected-return", "0.17",
+        "--expected-return-horizon-months", "24", "--expected-return-method", "BASE_CASE_TARGET",
+        "--expected-return-basis", "PRICE_RETURN", "--price", "214.72",
         "--thesis-json", '["Inference demand underestimated"]',
         "--variant-perception-json", '{"variant_perception": "..."}',
         "--invalidation-json", '["Two consecutive downward revenue revisions"]',
@@ -668,6 +670,10 @@ def test_save_analysis_command_inserts_and_get_latest_analysis_reads_it_back(tmp
     assert read_result.exit_code == 0
     out = json.loads(read_result.stdout)
     assert out["decision"] == "ACCUMULATE"
+    assert out["expected_return_horizon_months"] == 24
+    assert out["expected_return_method"] == "BASE_CASE_TARGET"
+    assert out["expected_return_basis"] == "PRICE_RETURN"
+    assert out["expected_return_annualized"] == pytest.approx(1.17 ** 0.5 - 1)
     assert json.loads(out["thesis_json"]) == ["Inference demand underestimated"]
 
 
@@ -677,7 +683,9 @@ def test_save_analysis_command_rejects_invalid_decision(tmp_path, monkeypatch):
 
     result = runner.invoke(app, [
         "analysis", "save", "NVDA",
-        "--decision", "MOON", "--confidence", "0.5", "--expected-return", "0.1", "--price", "200",
+        "--decision", "MOON", "--confidence", "0.5", "--expected-return", "0.1",
+        "--expected-return-horizon-months", "12", "--expected-return-method", "OTHER",
+        "--expected-return-basis", "PRICE_RETURN", "--price", "200",
         "--thesis-json", "[]", "--variant-perception-json", "{}", "--invalidation-json", "[]",
     ])
     assert result.exit_code == 1
@@ -696,7 +704,9 @@ def test_save_analysis_command_blocks_directional_record_when_research_only(tmp_
 
     result = runner.invoke(app, [
         "analysis", "save", "NVDA",
-        "--decision", "HOLD", "--confidence", "0.5", "--expected-return", "0.1", "--price", "200",
+        "--decision", "HOLD", "--confidence", "0.5", "--expected-return", "0.1",
+        "--expected-return-horizon-months", "12", "--expected-return-method", "OTHER",
+        "--expected-return-basis", "PRICE_RETURN", "--price", "200",
         "--thesis-json", "[]", "--variant-perception-json", "{}", "--invalidation-json", "[]",
     ])
 

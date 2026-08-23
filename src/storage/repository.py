@@ -132,14 +132,18 @@ def insert_investment_analysis(con: duckdb.DuckDBPyConnection, row: InvestmentAn
         """
         INSERT INTO investment_analysis
             (ticker, created_at, price, decision, confidence, expected_return,
+             expected_return_horizon_months, expected_return_method,
+             expected_return_annualized, expected_return_basis,
              bull_value, base_value, bear_value,
              thesis_json, variant_perception_json, invalidation_json,
              run_id, model_name, model_version, prompt_version,
              input_snapshot_json, assumptions_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
         [row.ticker, row.created_at, row.price, row.decision.value, row.confidence, row.expected_return,
+         row.expected_return_horizon_months, row.expected_return_method,
+         row.expected_return_annualized, row.expected_return_basis,
          row.bull_value, row.base_value, row.bear_value,
          row.thesis_json, row.variant_perception_json, row.invalidation_json,
          row.run_id, row.model_name, row.model_version, row.prompt_version,
@@ -375,6 +379,8 @@ def get_catalysts(con: duckdb.DuckDBPyConnection, ticker: str, since: Optional[d
 
 def get_latest_investment_analysis(con: duckdb.DuckDBPyConnection, ticker: str) -> Optional[dict]:
     cols = ["id", "ticker", "created_at", "price", "decision", "confidence", "expected_return",
+            "expected_return_horizon_months", "expected_return_method",
+            "expected_return_annualized", "expected_return_basis",
             "bull_value", "base_value", "bear_value",
             "thesis_json", "variant_perception_json", "invalidation_json",
             "run_id", "model_name", "model_version", "prompt_version",
@@ -392,6 +398,8 @@ def get_latest_investment_analysis(con: duckdb.DuckDBPyConnection, ticker: str) 
 
 def get_investment_analysis_history(con: duckdb.DuckDBPyConnection, ticker: str, limit: int = 20) -> List[dict]:
     cols = ["id", "ticker", "created_at", "price", "decision", "confidence", "expected_return",
+            "expected_return_horizon_months", "expected_return_method",
+            "expected_return_annualized", "expected_return_basis",
             "bull_value", "base_value", "bear_value",
             "thesis_json", "variant_perception_json", "invalidation_json",
             "run_id", "model_name", "model_version", "prompt_version",

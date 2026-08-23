@@ -75,11 +75,16 @@ uv run thesis analysis save-catalyst <TICKER> \
 
 ```bash
 uv run thesis analysis save <TICKER> \
-  --decision HOLD --confidence 0.6 --expected-return 0.08 --price 200 \
+  --decision HOLD --confidence 0.6 --expected-return 0.08 \
+  --expected-return-horizon-months 12 \
+  --expected-return-method PROBABILITY_WEIGHTED_SCENARIO \
+  --expected-return-basis PRICE_RETURN --price 200 \
   --thesis-json '[]' --variant-perception-json '{}' --invalidation-json '[]' \
   --model-name codex --model-version MODEL_VERSION \
   --prompt-version investment-analysis-v2 --input-snapshot-json '{}'
 ```
+
+`expected-return`은 `expected-return-horizon-months` 동안의 누적 기대수익률이며 CLI가 연환산 값을 함께 저장한다. 방법은 `PROBABILITY_WEIGHTED_SCENARIO | BASE_CASE_TARGET | DCF_IRR | OTHER`, 기준은 배당 제외 `PRICE_RETURN` 또는 배당 포함 `TOTAL_RETURN` 중 하나다. 기간·방법·기준이 없으면 방향성 분석을 저장하지 않는다. 서로 다른 기간의 누적 수익률을 직접 비교하지 말고 연환산 값과 bear downside를 함께 본다.
 
 `decision`은 `STRONG_BUY | ACCUMULATE | HOLD | WATCH | REDUCE | EXIT`. 저장된 숫자형 `confidence`는 예측 확률이 아니라 legacy 주관값이므로 사용자에게 확률처럼 제시하지 않는다. 최종 답변에서는 근거 품질을 `충분/부분적/결론 불가`로 표현한다. 숫자에는 기준일과 `FACT/ESTIMATE/MODEL_OUTPUT/LLM_INFERENCE/USER_ASSUMPTION` 성격을 명확히 표시한다.
 

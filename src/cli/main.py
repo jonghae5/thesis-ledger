@@ -675,6 +675,9 @@ def save_analysis(
     decision: str = typer.Option(...),
     confidence: float = typer.Option(...),
     expected_return: float = typer.Option(...),
+    expected_return_horizon_months: int = typer.Option(..., min=1),
+    expected_return_method: str = typer.Option(...),
+    expected_return_basis: str = typer.Option(...),
     price: float = typer.Option(...),
     thesis_json: str = typer.Option(...),
     variant_perception_json: str = typer.Option(...),
@@ -690,6 +693,29 @@ def save_analysis(
     assumptions_json: Optional[str] = None,
 ):
     ticker = ticker.upper()
+
+    valid_return_methods = {
+        "PROBABILITY_WEIGHTED_SCENARIO", "BASE_CASE_TARGET", "DCF_IRR", "OTHER",
+    }
+    expected_return_method = expected_return_method.upper()
+    if expected_return_method not in valid_return_methods:
+        _fail({
+            "ticker": ticker, "status": "ERROR",
+            "message": f"invalid expected return method '{expected_return_method}', expected one of: {', '.join(sorted(valid_return_methods))}",
+        })
+    valid_return_bases = {"PRICE_RETURN", "TOTAL_RETURN"}
+    expected_return_basis = expected_return_basis.upper()
+    if expected_return_basis not in valid_return_bases:
+        _fail({
+            "ticker": ticker, "status": "ERROR",
+            "message": f"invalid expected return basis '{expected_return_basis}', expected one of: {', '.join(sorted(valid_return_bases))}",
+        })
+    if expected_return <= -1:
+        _fail({
+            "ticker": ticker, "status": "ERROR",
+            "message": "expected_return must be greater than -1.0",
+        })
+    expected_return_annualized = (1 + expected_return) ** (12 / expected_return_horizon_months) - 1
 
     try:
         decision_enum = Decision(decision)
@@ -730,6 +756,10 @@ def save_analysis(
     repository.insert_investment_analysis(con, InvestmentAnalysisRow(
         ticker=ticker, created_at=datetime.now(timezone.utc), price=price,
         decision=decision_enum, confidence=confidence, expected_return=expected_return,
+        expected_return_horizon_months=expected_return_horizon_months,
+        expected_return_method=expected_return_method,
+        expected_return_annualized=expected_return_annualized,
+        expected_return_basis=expected_return_basis,
         bull_value=bull_value, base_value=base_value, bear_value=bear_value,
         thesis_json=thesis_json, variant_perception_json=variant_perception_json, invalidation_json=invalidation_json,
         run_id=resolved_run_id, model_name=model_name, model_version=model_version,
@@ -739,6 +769,7 @@ def save_analysis(
     typer.echo(json.dumps({
         "ticker": ticker, "saved": True, "run_id": resolved_run_id,
         "audit_complete": audit_complete,
+        "expected_return_annualized": expected_return_annualized,
     }))
 
 

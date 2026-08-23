@@ -102,6 +102,27 @@ def test_investment_analysis_rejects_inverted_scenarios():
         )
 
 
+def test_investment_analysis_validates_expected_return_metadata_as_a_unit():
+    with pytest.raises(ValidationError, match="metadata must be provided together"):
+        InvestmentAnalysisRow(
+            ticker="NVDA", created_at=datetime.now(timezone.utc), price=100,
+            decision=Decision.HOLD, confidence=0.5, expected_return=0.21,
+            expected_return_horizon_months=24,
+            thesis_json="[]", variant_perception_json="{}", invalidation_json="[]",
+        )
+
+    with pytest.raises(ValidationError, match="does not match"):
+        InvestmentAnalysisRow(
+            ticker="NVDA", created_at=datetime.now(timezone.utc), price=100,
+            decision=Decision.HOLD, confidence=0.5, expected_return=0.21,
+            expected_return_horizon_months=24,
+            expected_return_method="BASE_CASE_TARGET",
+            expected_return_annualized=0.21,
+            expected_return_basis="PRICE_RETURN",
+            thesis_json="[]", variant_perception_json="{}", invalidation_json="[]",
+        )
+
+
 def test_estimate_snapshot_rejects_inverted_range():
     with pytest.raises(ValidationError, match="low <= mean <= high"):
         EstimateSnapshotRow(

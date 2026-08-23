@@ -420,6 +420,9 @@ uv run thesis analysis save NVDA \
   --decision HOLD \
   --confidence 0.60 \
   --expected-return 0.08 \
+  --expected-return-horizon-months 12 \
+  --expected-return-method PROBABILITY_WEIGHTED_SCENARIO \
+  --expected-return-basis PRICE_RETURN \
   --price 214.72 \
   --thesis-json '["AI accelerator demand remains strong"]' \
   --variant-perception-json '{"market_view":"growth normalizes","our_view":"revision remains positive"}' \
@@ -442,6 +445,8 @@ uv run thesis analysis save NVDA \
 - `WATCH`
 - `REDUCE`
 - `EXIT`
+
+`expected-return`은 지정한 horizon의 누적 기대수익률이다. `expected-return-horizon-months`는 양의 정수이며, CLI가 비교용 연환산 수익률을 계산해 함께 저장한다. 방법은 `PROBABILITY_WEIGHTED_SCENARIO`, `BASE_CASE_TARGET`, `DCF_IRR`, `OTHER` 중 하나이고 기준은 `PRICE_RETURN` 또는 배당을 포함한 `TOTAL_RETURN`이다.
 
 `confidence`는 0~1이다. `thesis-json`과 `invalidation-json`은 JSON 배열, `variant-perception-json`과 `input-snapshot-json`은 JSON 객체, `assumptions-json`은 JSON 배열이어야 한다. 저장은 append-only다.
 

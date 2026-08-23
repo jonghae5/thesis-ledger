@@ -158,7 +158,13 @@ class InvestmentAnalysisRow(BaseModel):
     price: float = Field(gt=0)
     decision: Decision
     confidence: float = Field(ge=0, le=1)
-    expected_return: float
+    expected_return: float = Field(gt=-1)
+    expected_return_horizon_months: Optional[int] = Field(default=None, gt=0)
+    expected_return_method: Optional[Literal[
+        "PROBABILITY_WEIGHTED_SCENARIO", "BASE_CASE_TARGET", "DCF_IRR", "OTHER"
+    ]] = None
+    expected_return_annualized: Optional[float] = Field(default=None, gt=-1)
+    expected_return_basis: Optional[Literal["PRICE_RETURN", "TOTAL_RETURN"]] = None
     bull_value: Optional[float] = None
     base_value: Optional[float] = None
     bear_value: Optional[float] = None
@@ -171,6 +177,22 @@ class InvestmentAnalysisRow(BaseModel):
     prompt_version: Optional[str] = None
     input_snapshot_json: Optional[str] = None
     assumptions_json: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_expected_return_metadata(self):
+        metadata = (
+            self.expected_return_horizon_months,
+            self.expected_return_method,
+            self.expected_return_annualized,
+            self.expected_return_basis,
+        )
+        if any(value is not None for value in metadata) and not all(value is not None for value in metadata):
+            raise ValueError("expected return metadata must be provided together")
+        if self.expected_return_horizon_months is not None:
+            annualized = (1 + self.expected_return) ** (12 / self.expected_return_horizon_months) - 1
+            if abs(annualized - self.expected_return_annualized) > 1e-9:
+                raise ValueError("expected_return_annualized does not match expected_return and horizon")
+        return self
 
     @model_validator(mode="after")
     def validate_scenario_order(self):
