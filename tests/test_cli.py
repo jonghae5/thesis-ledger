@@ -125,6 +125,36 @@ def test_fetch_writes_prices_and_point_in_time_fundamentals(tmp_path, monkeypatc
     assert snapshot_count == 1
 
 
+def test_fetch_fails_when_sec_response_has_no_supported_filing_facts(tmp_path, monkeypatch):
+    db_path = tmp_path / "test.duckdb"
+    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    price_rows = [{
+        "ticker": "NVDA", "date": "2026-08-21", "open": 100, "high": 105, "low": 99,
+        "close": 104, "volume": 1000, "source": "yahoo_finance", "source_url": "https://x",
+        "retrieved_at": datetime.now(timezone.utc).isoformat(), "as_of_date": "2026-08-21",
+    }]
+    monkeypatch.setattr(
+        "src.cli.main.YahooPriceProvider.get_prices",
+        lambda self, ticker, period_days=400: ProviderResult(
+            status=ProviderStatus.OK, data={"rows": price_rows},
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.main.SecFilingProvider.get_company_facts",
+        lambda self, ticker: ProviderResult(
+            status=ProviderStatus.OK, data={"facts": {"us-gaap": {}}},
+        ),
+    )
+
+    result = runner.invoke(app, ["data", "fetch", "NVDA"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["prices"] == {"status": "OK", "rows_written": 1}
+    assert payload["fundamentals"]["status"] == "ERROR"
+    assert "no supported" in payload["fundamentals"]["message"]
+
+
 def test_market_command_computes_metrics_from_stored_prices(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
     monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
@@ -464,8 +494,7 @@ def test_evidence_command_returns_research_only_package_without_consensus(tmp_pa
 
     assert result.exit_code == 0
     out = json.loads(result.stdout)
-    assert out["quality"]["quality"] == "PARTIAL"
-    assert out["quality"]["analysis_mode"] == "RESEARCH_ONLY"
+    assert out["quality"]["completeness"] == "PARTIAL"
     assert out["quality"]["can_research"] is True
     assert out["quality"]["can_decide"] is False
     assert "consensus gap" in out["quality"]["cannot_conclude"]
@@ -477,7 +506,7 @@ def test_evidence_command_exits_nonzero_when_core_inputs_are_missing(tmp_path, m
     result = runner.invoke(app, ["data", "evidence", "EMPTY"])
 
     assert result.exit_code == 1
-    assert json.loads(result.stdout)["quality"]["quality"] == "INSUFFICIENT"
+    assert json.loads(result.stdout)["quality"]["completeness"] == "INSUFFICIENT"
 
 
 def test_compare_command_returns_peer_rows_without_composite_score(tmp_path, monkeypatch):
@@ -504,7 +533,7 @@ def test_compare_command_exits_nonzero_when_no_peer_is_analyzable(tmp_path, monk
 
     assert result.exit_code == 1
     out = json.loads(result.stdout)
-    assert out["status"] == "INSUFFICIENT"
+    assert out["can_research"] is False
     assert "insufficient evidence for: AAA, BBB" in out["warnings"]
 
 
@@ -520,7 +549,6 @@ def test_prepare_command_returns_evidence_and_no_history_state(tmp_path, monkeyp
 
     assert result.exit_code == 0
     out = json.loads(result.stdout)
-    assert out["status"] == "RESEARCH_ONLY"
     assert out["previous_analysis"] is None
     assert out["evidence"]["quality"]["can_research"] is True
     assert out["evidence"]["quality"]["can_decide"] is False
@@ -559,10 +587,12 @@ def test_news_command_returns_articles_with_key(monkeypatch):
         ),
     )
 
-    result = runner.invoke(app, ["data", "news", "nvda"])
+    result = runner.invoke(app, ["data", "news", "nvda", "--limit", "1"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["ticker"] == "NVDA"
+    assert payload["limit"] == 1
+    assert payload["returned"] == 1
     assert payload["news"][0]["headline"] == "NVIDIA beats estimates"
 
 
@@ -728,7 +758,6 @@ def test_save_analysis_command_blocks_directional_record_when_research_only(tmp_
         "quality": {
             "can_decide": False,
             "can_research": True,
-            "analysis_mode": "RESEARCH_ONLY",
         },
     })
 

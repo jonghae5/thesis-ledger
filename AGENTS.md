@@ -58,3 +58,4 @@ uv run thesis doctor
 ```
 
 모든 명령은 stdout에 JSON 한 줄을 출력하며 실패 시 exit code 1을 반환한다.
+같은 DuckDB 파일을 여는 CLI 명령은 병렬 실행하지 않고 순차 실행한다.

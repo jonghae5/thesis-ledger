@@ -5,7 +5,7 @@ description: 금리·인플레이션·고용·신용·금융환경·VIX·Fear & 
 
 # macro-context
 
-거시지표를 독립 축으로 유지해 투자 scenario와 position sizing의 맥락을 만든다. 단일 macro/risk score나 자동 BUY/SELL을 만들지 않는다.
+거시지표를 독립 축으로 유지해 기업 scenario와 위험 예산 판단에 입력을 제공한다. 매크로만으로 비중, 단일 risk score 또는 BUY/SELL을 만들지 않는다.
 
 ```bash
 uv run thesis data macro-fetch

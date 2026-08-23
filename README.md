@@ -69,6 +69,12 @@ Codex가 변경점/thesis/risk 판단
 analysis save
 ```
 
+### 한국 주식 MCP
+
+이 저장소를 trusted project로 연 Codex 클라이언트는 `.codex/config.toml`의 원격 `korea_stock` MCP를 통해 KOSPI·KOSDAQ 종목 검색, KRX 시세, DART 연간 재무와 공시 risk flag를 조회할 수 있다. 새 설정을 읽으려면 Codex CLI·IDE·데스크톱 클라이언트에서 새 세션을 시작하거나 해당 클라이언트를 재시작한다.
+
+한국 종목 데이터는 현재 외부 조사 근거로만 사용한다. MCP 연간 재무에는 각 숫자의 실제 filing date가 없고 컨센서스·revision도 제공되지 않으므로 `fundamental_snapshots`나 `investment_analysis`에 저장하지 않으며 방향성 판단을 만들지 않는다. MCP에는 종목코드 외의 보유수량·평균단가·자산 같은 개인 정보를 보내지 않는다.
+
 CLI 자체는 LLM을 호출하지 않는다. 터미널에서 `analysis prepare`를 실행하면 Codex가 읽을 근거 패키지만 만들어진다.
 
 ## 환경변수
@@ -116,7 +122,8 @@ uv run thesis analysis prepare NVDA
 - `previous_analysis`: 직전 thesis와 판단
 - `changes_since_previous`: 당시 이후 가격·EPS·매출 컨센서스 변화
 - `evidence`: 현재 시장·재무·기대·밸류에이션·guidance·catalyst
-- `status`: `READY` 또는 `INSUFFICIENT_EVIDENCE`
+
+실행 가능 범위는 `evidence.quality.can_research`와 `can_decide`로 확인한다.
 
 컨센서스가 `MISSING` 또는 `STALE`이면 다음 순서로 갱신한다. Alpha Vantage가 quota나 일시 오류로 실패하면 yfinance로 자동 전환하며, 두 provider가 모두 실패하면 마지막 정상 snapshot을 `STALE`로 반환한다.
 
@@ -156,20 +163,18 @@ uv run thesis data evidence NVDA
 - `catalysts`: 오늘 이후 저장된 이벤트
 - `macro`: 기준금리, 실질금리, 금리차, 인플레이션·기대인플레이션, 고용, 신용, NFCI, VIX, Fear & Greed, 달러
 
-품질 필드 의미:
+`quality`는 세 종류만 사용한다.
 
-| 값 | 의미 | 행동 |
+| 필드 | 값 | 의미 |
 |---|---|---|
-| `COMPLETE` | 모든 분석 섹션과 변화 판단이 사용 가능 | 전체 분석 가능 |
-| `PARTIAL` | 조사 가능하지만 일부 결론이 제한됨 | `analysis_mode`와 `cannot_conclude`를 확인 |
-| `INSUFFICIENT` | 가격·재무·valuation 같은 핵심 입력 부족 | 투자 결론을 만들지 않고 데이터부터 수집 |
+| `completeness` | `COMPLETE/PARTIAL/INSUFFICIENT` | 전체 입력의 완전성 |
+| `can_research` | boolean | 가격·재무·valuation으로 사실 조사와 정리가 가능한지 |
+| `can_decide` | boolean | 검증 가능한 expectation anchor가 있어 방향성 판단이 가능한지 |
 
-추가 필드:
+`COMPLETE/PARTIAL`은 판단 허용 상태가 아니다. 실제 허용 여부는 boolean을 사용한다. `expectation_anchors`에는 사용 가능한 `CONSENSUS_REVISION` 또는 `GUIDANCE_VS_PRICE_IMPLIED` 경로가 표시된다.
 
-- `analysis_mode`: `DECISION_READY`, `RESEARCH_ONLY`, `INSUFFICIENT`
-- `can_research`: 가격·재무·valuation으로 사실 조사와 정리가 가능한지 여부
-- `can_decide`: 신선한 컨센서스와 측정 가능한 revision까지 있어 방향성 판단이 가능한지 여부
-- `can_analyze`: 하위 호환 필드이며 `can_decide`와 동일
+진단 필드:
+
 - `missing`: 없거나 오래된 섹션
 - `cannot_conclude`: 현재 데이터로 결론 내리면 안 되는 항목
 - `warnings`: catalyst/guidance 부족, 지표 결측 등
@@ -276,7 +281,7 @@ uv run thesis data evidence NVDA
 uv run thesis data evidence NVDA --max-price-age-days 14
 ```
 
-외부 API를 호출하지 않고 현재 DB의 분석 재료를 하나의 품질 판정 JSON으로 구성한다. 조사 핵심 입력도 없어 `can_research=false`이면 exit code `1`이다. `RESEARCH_ONLY`는 정상 출력하되 방향성 판단과 `analysis save`를 허용하지 않는다.
+외부 API를 호출하지 않고 현재 DB의 분석 재료를 하나의 품질 판정 JSON으로 구성한다. 조사 핵심 입력도 없어 `can_research=false`이면 exit code `1`이다. `can_decide=false`이면 사실 조사는 가능하지만 방향성 판단과 `analysis save`를 허용하지 않는다.
 
 #### Peer 비교
 
@@ -285,7 +290,7 @@ uv run thesis data compare NVDA AMD
 uv run thesis data compare NVDA AMD AVGO --max-price-age-days 14
 ```
 
-최소 두 개의 서로 다른 ticker가 필요하다. 모든 종목이 분석 불가능하면 exit code `1`; 일부만 부족하면 `PARTIAL`과 경고를 반환한다.
+최소 두 개의 서로 다른 ticker가 필요하다. 모든 종목에서 `can_research=false`이면 exit code `1`; 일부만 부족하면 경고를 반환한다.
 
 #### Catalyst 조회
 
@@ -300,9 +305,10 @@ uv run thesis data catalysts NVDA
 ```bash
 uv run thesis data news NVDA
 uv run thesis data news NVDA --days 14
+uv run thesis data news NVDA --days 14 --limit 20
 ```
 
-Finnhub 최근 뉴스를 반환한다. `--days`는 1~30이다. 자동으로 catalyst를 판정하거나 저장하지 않는다.
+Finnhub 최근 뉴스 후보를 기본 20건 반환한다. `--days`는 1~30, `--limit`은 1~100이다. 자동으로 catalyst를 판정하거나 저장하지 않으며 원문 검증 전에는 분석 근거로 사용하지 않는다.
 
 ### Valuation
 
@@ -354,7 +360,7 @@ uv run thesis analysis prepare NVDA
 uv run thesis analysis prepare NVDA --max-price-age-days 14
 ```
 
-직전 분석, 이후 변화, 현재 evidence를 하나로 합친다. 외부 API는 호출하지 않는다. 핵심 데이터가 부족하면 `INSUFFICIENT_EVIDENCE`와 exit code `1`을 반환한다.
+직전 분석, 이후 변화, 현재 evidence를 하나로 합친다. 외부 API는 호출하지 않는다. `evidence.quality.can_research=false`이면 exit code `1`을 반환한다.
 
 #### 최근 분석과 이력
 
@@ -519,7 +525,7 @@ uv run thesis data expectations NVDA
 uv run thesis data revisions NVDA
 ```
 
-### `INSUFFICIENT_EVIDENCE`
+### `can_research=false`
 
 출력의 `quality.missing`과 각 section의 `message`를 확인한다. 일반적으로 먼저 다음을 실행한다.
 

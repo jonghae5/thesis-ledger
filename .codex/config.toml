@@ -1,0 +1,13 @@
+[mcp_servers.korea_stock]
+url = "https://korea-stock-analyzer-mcp-production.up.railway.app/mcp"
+enabled = true
+required = false
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+default_tools_approval_mode = "prompt"
+enabled_tools = [
+  "search_company",
+  "get_quote",
+  "get_financials",
+  "get_risk_flags",
+]

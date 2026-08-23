@@ -1,5 +1,3 @@
-import pytest
-
 from src.models.enums import ProviderStatus
 from src.providers.sec import SecFilingProvider, extract_fundamental_snapshots
 
@@ -68,11 +66,42 @@ def test_get_company_facts_returns_ok(tmp_path, monkeypatch):
     assert result.data["entityName"] == "NVIDIA CORP"
 
 
-def test_missing_contact_email_raises(tmp_path, monkeypatch):
+def test_missing_contact_email_returns_error(tmp_path, monkeypatch):
     monkeypatch.setattr("src.providers.cache.CACHE_ROOT", tmp_path)
     monkeypatch.delenv("SEC_CONTACT_EMAIL", raising=False)
-    with pytest.raises(RuntimeError):
-        SecFilingProvider(contact_email="").get_company_facts("NVDA")
+    result = SecFilingProvider(contact_email="").get_company_facts("NVDA")
+    assert result.status == ProviderStatus.ERROR
+    assert "SEC_CONTACT_EMAIL not set" in result.message
+
+
+def test_ticker_directory_failure_returns_error(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.providers.cache.CACHE_ROOT", tmp_path)
+
+    def fail_get(url, headers=None, timeout=None):
+        raise RuntimeError("SEC unavailable")
+
+    monkeypatch.setattr("src.providers.sec.httpx.get", fail_get)
+    result = SecFilingProvider(contact_email="research@example.com").get_company_facts("NVDA")
+    assert result.status == ProviderStatus.ERROR
+    assert result.message == "SEC unavailable"
+
+
+def test_invalid_company_facts_json_returns_error(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.providers.cache.CACHE_ROOT", tmp_path)
+
+    class InvalidJsonResponse(_FakeResponse):
+        def json(self):
+            raise ValueError("invalid SEC JSON")
+
+    def fake_get(url, headers=None, timeout=None):
+        if "company_tickers.json" in url:
+            return _FakeResponse(TICKERS_JSON)
+        return InvalidJsonResponse(None)
+
+    monkeypatch.setattr("src.providers.sec.httpx.get", fake_get)
+    result = SecFilingProvider(contact_email="research@example.com").get_company_facts("NVDA")
+    assert result.status == ProviderStatus.ERROR
+    assert result.message == "invalid SEC JSON"
 
 
 def test_unknown_ticker_returns_error(tmp_path, monkeypatch):

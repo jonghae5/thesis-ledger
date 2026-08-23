@@ -38,9 +38,14 @@ class SecFilingProvider:
         return {"User-Agent": f"thesis-ledger {self._contact()}"}
 
     def _get_cik(self, ticker: str) -> Optional[str]:
+        def _fetch_tickers() -> dict:
+            response = httpx.get(TICKERS_URL, headers=self._headers(), timeout=10)
+            response.raise_for_status()
+            return response.json()
+
         data = cached_fetch(
             "sec", "company_tickers", 86400,
-            lambda: httpx.get(TICKERS_URL, headers=self._headers(), timeout=10).json(),
+            _fetch_tickers,
         )
         for row in data.values():
             if row["ticker"].upper() == ticker.upper():
@@ -48,26 +53,28 @@ class SecFilingProvider:
         return None
 
     def get_submissions(self, ticker: str) -> ProviderResult:
-        cik = self._get_cik(ticker)
-        if cik is None:
-            return ProviderResult(status=ProviderStatus.ERROR, message=f"CIK not found for {ticker}")
         try:
+            cik = self._get_cik(ticker)
+            if cik is None:
+                return ProviderResult(status=ProviderStatus.ERROR, message=f"CIK not found for {ticker}")
             resp = httpx.get(f"{SEC_BASE}/submissions/CIK{cik}.json", headers=self._headers(), timeout=10)
             resp.raise_for_status()
+            payload = resp.json()
         except Exception as exc:
             return ProviderResult(status=ProviderStatus.ERROR, message=str(exc))
-        return ProviderResult(status=ProviderStatus.OK, data=resp.json())
+        return ProviderResult(status=ProviderStatus.OK, data=payload)
 
     def get_company_facts(self, ticker: str) -> ProviderResult:
-        cik = self._get_cik(ticker)
-        if cik is None:
-            return ProviderResult(status=ProviderStatus.ERROR, message=f"CIK not found for {ticker}")
         try:
+            cik = self._get_cik(ticker)
+            if cik is None:
+                return ProviderResult(status=ProviderStatus.ERROR, message=f"CIK not found for {ticker}")
             resp = httpx.get(f"{SEC_BASE}/api/xbrl/companyfacts/CIK{cik}.json", headers=self._headers(), timeout=10)
             resp.raise_for_status()
+            payload = resp.json()
         except Exception as exc:
             return ProviderResult(status=ProviderStatus.ERROR, message=str(exc))
-        return ProviderResult(status=ProviderStatus.OK, data=resp.json())
+        return ProviderResult(status=ProviderStatus.OK, data=payload)
 
 
 _FLOW_FIELDS = {

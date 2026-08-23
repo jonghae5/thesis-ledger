@@ -235,9 +235,46 @@ def _section(builder) -> dict:
 
 def _guidance_section(con, ticker: str) -> dict:
     guidance = repository.get_latest_guidance_snapshot(con, ticker)
-    return {"status": "OK", **guidance} if guidance else {
-        "status": "MISSING", "message": "no stored management guidance",
-    }
+    if not guidance:
+        return {"status": "MISSING", "message": "no stored management guidance"}
+    source_date = guidance["source_date"]
+    if isinstance(source_date, str):
+        source_date = date.fromisoformat(source_date)
+    age_days = (date.today() - source_date).days
+    section = {"status": "OK", **guidance, "age_days": age_days}
+    if age_days > 120:
+        section["status"] = "STALE"
+        section["message"] = f"management guidance is {age_days} days old"
+    return section
+
+
+def _expectation_anchors(sections: dict) -> list[str]:
+    anchors = []
+    has_fresh_consensus = sections["expectations"]["status"] == "OK"
+    has_revision_signal = (
+        sections["revisions"]["status"] == "OK"
+        and sections["revisions"].get("revision_score") is not None
+    )
+    if has_fresh_consensus and has_revision_signal:
+        anchors.append("CONSENSUS_REVISION")
+
+    guidance = sections["guidance"]
+    guidance_dimensions = (
+        guidance.get("fiscal_period"), guidance.get("guidance_scope"),
+        guidance.get("currency"), guidance.get("value_unit"),
+    )
+    has_guided_metric = any(
+        guidance.get(field) is not None
+        for field in ("revenue_low", "revenue_high", "margin_guidance", "capex_guidance")
+    )
+    if (
+        guidance["status"] == "OK"
+        and all(value is not None for value in guidance_dimensions)
+        and has_guided_metric
+        and sections["implied_expectations"]["status"] == "OK"
+    ):
+        anchors.append("GUIDANCE_VS_PRICE_IMPLIED")
+    return anchors
 
 
 def _expectations_section(con, ticker: str) -> dict:
@@ -245,9 +282,10 @@ def _expectations_section(con, ticker: str) -> dict:
     if section["status"] != "OK":
         return section
     snapshot_at = datetime.fromisoformat(section["snapshot_at"])
-    if snapshot_at.tzinfo is None:
-        snapshot_at = snapshot_at.replace(tzinfo=timezone.utc)
-    age_days = (datetime.now(timezone.utc) - snapshot_at).days
+    # DuckDB TIMESTAMP returns a timezone-naive local wall time even when an
+    # aware datetime was inserted. Freshness is day-based, so compare calendar
+    # dates and never report a negative age because of that conversion.
+    age_days = max(0, (date.today() - snapshot_at.date()).days)
     section["age_days"] = age_days
     if age_days > 2:
         section["status"] = "STALE"
@@ -261,12 +299,8 @@ def _quality_report(sections: dict) -> dict:
     missing = [name for name, section in sections.items() if section["status"] != "OK"]
     research_core = ("market", "fundamentals", "valuation")
     can_research = all(sections[name]["status"] == "OK" for name in research_core)
-    has_fresh_expectations = sections["expectations"]["status"] == "OK"
-    has_revision_signal = (
-        sections["revisions"]["status"] == "OK"
-        and sections["revisions"].get("revision_score") is not None
-    )
-    can_decide = can_research and has_fresh_expectations and has_revision_signal
+    expectation_anchors = _expectation_anchors(sections)
+    can_decide = can_research and bool(expectation_anchors)
     cannot_conclude = []
     warnings = []
 
@@ -291,19 +325,16 @@ def _quality_report(sections: dict) -> dict:
                 warnings.append(f"fundamentals.{field} is unavailable")
 
     if not can_research:
-        quality = "INSUFFICIENT"
+        completeness = "INSUFFICIENT"
     elif can_decide and not missing and not cannot_conclude:
-        quality = "COMPLETE"
+        completeness = "COMPLETE"
     else:
-        quality = "PARTIAL"
+        completeness = "PARTIAL"
     return {
-        "quality": quality,
-        "analysis_mode": "DECISION_READY" if can_decide else ("RESEARCH_ONLY" if can_research else "INSUFFICIENT"),
+        "completeness": completeness,
         "can_research": can_research,
         "can_decide": can_decide,
-        # Backward-compatible key with the safer meaning: a directional
-        # investment conclusion is analysis, not merely data availability.
-        "can_analyze": can_decide,
+        "expectation_anchors": expectation_anchors,
         "missing": missing,
         "cannot_conclude": sorted(set(cannot_conclude)),
         "warnings": warnings,
@@ -356,7 +387,7 @@ def compare_evidence(evidence_items: list[dict]) -> dict:
         currencies.add(fundamentals.get("currency"))
         rows.append({
             "ticker": evidence["ticker"],
-            "quality": evidence["quality"]["quality"],
+            "completeness": evidence["quality"]["completeness"],
             "price": market.get("price"),
             "price_as_of_date": market.get("as_of_date"),
             "momentum_3m": market.get("momentum_3m"),
@@ -390,11 +421,9 @@ def compare_evidence(evidence_items: list[dict]) -> dict:
     ]
     if unusable:
         warnings.append(f"insufficient evidence for: {', '.join(unusable)}")
-    usable_count = len(evidence_items) - len(unusable)
-    decision_ready = all(evidence["quality"]["can_decide"] for evidence in evidence_items)
-    status = "READY" if decision_ready else ("RESEARCH_ONLY" if usable_count else "INSUFFICIENT")
     return {
-        "status": status,
+        "can_research": bool(len(evidence_items) - len(unusable)),
+        "can_decide": all(evidence["quality"]["can_decide"] for evidence in evidence_items),
         "tickers": [row["ticker"] for row in rows],
         "rows": rows,
         "warnings": warnings,
@@ -427,10 +456,6 @@ def prepare_update(con, ticker: str, max_price_age_days: int = DEFAULT_MAX_PRICE
             changes = {"status": "MISSING", "message": str(exc)}
     return {
         "ticker": ticker,
-        "status": (
-            "READY" if evidence["quality"]["can_decide"]
-            else ("RESEARCH_ONLY" if evidence["quality"]["can_research"] else "INSUFFICIENT_EVIDENCE")
-        ),
         "previous_analysis": previous,
         "changes_since_previous": changes,
         "evidence": evidence,

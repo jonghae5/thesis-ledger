@@ -99,8 +99,9 @@ def test_evidence_is_complete_when_decision_inputs_exist(con):
 
     evidence = build_evidence(con, "AAA")
 
-    assert evidence["quality"]["quality"] == "COMPLETE"
-    assert evidence["quality"]["can_analyze"] is True
+    assert evidence["quality"]["completeness"] == "COMPLETE"
+    assert evidence["quality"]["can_decide"] is True
+    assert evidence["quality"]["expectation_anchors"] == ["CONSENSUS_REVISION"]
     assert evidence["sections"]["market"]["status"] == "OK"
     assert evidence["sections"]["revisions"]["revision_score"] is not None
     assert evidence["sections"]["implied_expectations"]["implied_revenue_cagr"] is not None
@@ -110,16 +111,16 @@ def test_evidence_is_complete_when_decision_inputs_exist(con):
 def test_evidence_without_macro_is_partial_but_decision_remains_usable(con):
     _seed_company(con, "AAA")
     evidence = build_evidence(con, "AAA")
-    assert evidence["quality"]["quality"] == "PARTIAL"
-    assert evidence["quality"]["can_analyze"] is True
+    assert evidence["quality"]["completeness"] == "PARTIAL"
+    assert evidence["quality"]["can_decide"] is True
     assert "macro-sensitive scenario calibration" in evidence["quality"]["cannot_conclude"]
 
 
 def test_evidence_refuses_to_analyze_without_core_inputs(con):
     evidence = build_evidence(con, "EMPTY")
 
-    assert evidence["quality"]["quality"] == "INSUFFICIENT"
-    assert evidence["quality"]["can_analyze"] is False
+    assert evidence["quality"]["completeness"] == "INSUFFICIENT"
+    assert evidence["quality"]["can_decide"] is False
     assert {"market", "fundamentals", "valuation"}.issubset(evidence["quality"]["missing"])
 
 
@@ -133,12 +134,56 @@ def test_evidence_marks_old_consensus_stale(con):
     evidence = build_evidence(con, "AAA")
 
     assert evidence["sections"]["expectations"]["status"] == "STALE"
-    assert evidence["quality"]["quality"] == "PARTIAL"
-    assert evidence["quality"]["analysis_mode"] == "RESEARCH_ONLY"
+    assert evidence["quality"]["completeness"] == "PARTIAL"
     assert evidence["quality"]["can_research"] is True
     assert evidence["quality"]["can_decide"] is False
-    assert evidence["quality"]["can_analyze"] is False
     assert "consensus gap" in evidence["quality"]["cannot_conclude"]
+
+
+def test_evidence_never_reports_negative_consensus_age(con):
+    _seed_company(con, "AAA")
+    con.execute(
+        "UPDATE estimate_snapshots SET snapshot_at = ? WHERE ticker = 'AAA'",
+        [datetime.now() + timedelta(hours=9)],
+    )
+
+    evidence = build_evidence(con, "AAA")
+
+    assert evidence["sections"]["expectations"]["age_days"] == 0
+
+
+def test_evidence_can_decide_with_comparable_guidance_and_price_implied_anchor(con):
+    _seed_company(con, "AAA")
+    con.execute("DELETE FROM estimate_snapshots WHERE ticker = 'AAA'")
+    now = datetime.now(timezone.utc)
+    repository.insert_guidance_snapshot(con, GuidanceSnapshotRow(
+        ticker="AAA", snapshot_at=now + timedelta(seconds=1),
+        revenue_low=125.0, revenue_high=130.0,
+        fiscal_period="FY2027", guidance_scope="FULL_YEAR",
+        currency="USD", value_unit="MILLIONS",
+        source_filing="10-Q", source_date=date.today(), retrieved_at=now,
+    ))
+
+    evidence = build_evidence(con, "AAA")
+
+    assert evidence["quality"]["can_decide"] is True
+    assert evidence["quality"]["expectation_anchors"] == ["GUIDANCE_VS_PRICE_IMPLIED"]
+    assert "consensus gap" in evidence["quality"]["cannot_conclude"]
+
+
+def test_evidence_rejects_stale_guidance_as_expectation_anchor(con):
+    _seed_company(con, "AAA")
+    con.execute("DELETE FROM estimate_snapshots WHERE ticker = 'AAA'")
+    con.execute(
+        "UPDATE guidance_snapshots SET source_date = ? WHERE ticker = 'AAA'",
+        [date.today() - timedelta(days=121)],
+    )
+
+    evidence = build_evidence(con, "AAA")
+
+    assert evidence["sections"]["guidance"]["status"] == "STALE"
+    assert evidence["quality"]["can_decide"] is False
+    assert evidence["quality"]["expectation_anchors"] == []
 
 
 def test_compare_keeps_peer_metrics_separate_without_composite_score(con):
@@ -166,7 +211,6 @@ def test_prepare_update_combines_previous_analysis_changes_and_evidence(con):
 
     prepared = prepare_update(con, "AAA")
 
-    assert prepared["status"] == "READY"
     assert prepared["previous_analysis"]["decision"] == "HOLD"
     assert prepared["changes_since_previous"]["status"] == "OK"
-    assert prepared["evidence"]["quality"]["can_analyze"] is True
+    assert prepared["evidence"]["quality"]["can_decide"] is True

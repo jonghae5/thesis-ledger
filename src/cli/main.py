@@ -180,11 +180,17 @@ def fetch(ticker: str):
     if facts_result.status == ProviderStatus.OK:
         retrieved_at = datetime.now(timezone.utc).isoformat()
         snapshot_dicts = extract_fundamental_snapshots(facts_result.data, ticker, retrieved_at)
-        snapshot_rows = [_fundamental_snapshot_row_from_dict(r) for r in snapshot_dicts]
-        snapshot_n = repository.upsert_fundamental_snapshots(con, snapshot_rows) if snapshot_rows else 0
-        result["fundamentals"] = {
-            "status": "OK", "rows_written": snapshot_n,
-        }
+        if snapshot_dicts:
+            snapshot_rows = [_fundamental_snapshot_row_from_dict(r) for r in snapshot_dicts]
+            snapshot_n = repository.upsert_fundamental_snapshots(con, snapshot_rows)
+            result["fundamentals"] = {
+                "status": "OK", "rows_written": snapshot_n,
+            }
+        else:
+            result["fundamentals"] = {
+                "status": "ERROR",
+                "message": "SEC response has no supported 10-K/10-Q US-GAAP filing facts",
+            }
     else:
         result["fundamentals"] = {"status": facts_result.status.value, "message": facts_result.message}
 
@@ -425,7 +431,7 @@ def compare(tickers: list[str], max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_
         build_evidence(con, ticker, max_price_age_days) for ticker in normalized
     ])
     typer.echo(json.dumps(payload))
-    if payload["status"] == "INSUFFICIENT":
+    if not payload["can_research"]:
         raise typer.Exit(code=1)
 
 
@@ -697,12 +703,16 @@ def catalysts(ticker: str):
 
 
 @data_app.command("news")
-def news(ticker: str, days: int = 7):
+def news(ticker: str, days: int = 7, limit: int = typer.Option(20, min=1, max=100)):
     ticker = ticker.upper()
     result = FinnhubNewsProvider().get_news(ticker, days=days)
     if result.status != ProviderStatus.OK:
         _fail({"ticker": ticker, "status": result.status.value, "message": result.message})
-    typer.echo(json.dumps({"ticker": ticker, "days": days, "news": result.data["rows"]}))
+    rows = result.data["rows"][:limit]
+    typer.echo(json.dumps({
+        "ticker": ticker, "days": days, "limit": limit,
+        "returned": len(rows), "news": rows,
+    }))
 
 
 @analysis_app.command("save-catalyst")
@@ -803,7 +813,7 @@ def save_analysis(
         _fail({
             "ticker": ticker,
             "status": "RESEARCH_ONLY",
-            "message": "directional analysis cannot be saved without fresh expectations and a measurable revision signal",
+            "message": "directional analysis requires a usable expectation anchor",
             "quality": evidence["quality"],
         })
     repository.insert_investment_analysis(con, InvestmentAnalysisRow(
@@ -871,7 +881,7 @@ def prepare(ticker: str, max_price_age_days: int = DEFAULT_MAX_PRICE_AGE_DAYS):
     """Prepare prior thesis, changes, and current evidence for Codex synthesis."""
     payload = prepare_update(_connect(), ticker, max_price_age_days)
     typer.echo(json.dumps(payload))
-    if payload["status"] == "INSUFFICIENT_EVIDENCE":
+    if not payload["evidence"]["quality"]["can_research"]:
         raise typer.Exit(code=1)
 
 
