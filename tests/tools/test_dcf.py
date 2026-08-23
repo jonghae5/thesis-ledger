@@ -1,0 +1,81 @@
+import pytest
+
+from src.tools.dcf import (
+    faded_target_price,
+    implied_growth_rate,
+    probability_weighted_value,
+    project_enterprise_value,
+    project_enterprise_value_fade,
+    scenario_target_price,
+)
+
+
+def test_project_enterprise_value_is_monotonic_in_growth():
+    low = project_enterprise_value(100.0, fcf_margin=0.3, growth=0.05, discount_rate=0.09, terminal_growth=0.025, years=10)
+    high = project_enterprise_value(100.0, fcf_margin=0.3, growth=0.20, discount_rate=0.09, terminal_growth=0.025, years=10)
+    assert high > low
+
+
+def test_project_enterprise_value_raises_when_terminal_growth_exceeds_discount_rate():
+    with pytest.raises(ValueError):
+        project_enterprise_value(100.0, fcf_margin=0.3, growth=0.1, discount_rate=0.02, terminal_growth=0.03, years=10)
+
+
+def test_implied_growth_rate_round_trips_through_project_enterprise_value():
+    true_growth = 0.18
+    target_ev = project_enterprise_value(100.0, fcf_margin=0.35, growth=true_growth, discount_rate=0.09, terminal_growth=0.025, years=10)
+    solved = implied_growth_rate(100.0, fcf_margin=0.35, target_enterprise_value=target_ev, discount_rate=0.09, terminal_growth=0.025, years=10)
+    assert solved == pytest.approx(true_growth, abs=1e-4)
+
+
+def test_implied_growth_rate_raises_on_non_positive_margin():
+    with pytest.raises(ValueError):
+        implied_growth_rate(100.0, fcf_margin=0.0, target_enterprise_value=500.0)
+
+
+def test_scenario_target_price_higher_growth_gives_higher_price():
+    low = scenario_target_price(100.0, fcf_margin=0.3, revenue_growth=0.05, shares=10.0, net_debt=0.0)
+    high = scenario_target_price(100.0, fcf_margin=0.3, revenue_growth=0.25, shares=10.0, net_debt=0.0)
+    assert high > low > 0
+
+
+def test_probability_weighted_value_computes_expectation():
+    scenarios = [
+        {"probability": 0.25, "target_price": 100.0},
+        {"probability": 0.50, "target_price": 150.0},
+        {"probability": 0.25, "target_price": 210.0},
+    ]
+    value = probability_weighted_value(scenarios)
+    assert value == pytest.approx(0.25 * 100.0 + 0.50 * 150.0 + 0.25 * 210.0)
+
+
+def test_probability_weighted_value_raises_when_probabilities_dont_sum_to_one():
+    with pytest.raises(ValueError):
+        probability_weighted_value([{"probability": 0.5, "target_price": 100.0}, {"probability": 0.2, "target_price": 200.0}])
+
+
+def test_probability_weighted_value_rejects_negative_probability_even_if_sum_is_one():
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        probability_weighted_value([
+            {"probability": -0.2, "target_price": 100.0},
+            {"probability": 1.2, "target_price": 200.0},
+        ])
+
+
+def test_faded_dcf_is_sensitive_to_growth_margin_and_dilution():
+    base = project_enterprise_value_fade(
+        100.0, starting_margin=0.20, initial_growth=0.15, mature_margin=0.25,
+    )
+    stronger = project_enterprise_value_fade(
+        100.0, starting_margin=0.20, initial_growth=0.20, mature_margin=0.30,
+    )
+    assert stronger > base > 0
+
+    undiluted = faded_target_price(
+        100.0, 0.20, 0.15, 0.25, shares=10.0, net_debt=0.0,
+    )
+    diluted = faded_target_price(
+        100.0, 0.20, 0.15, 0.25, shares=10.0, net_debt=0.0,
+        annual_dilution=0.02,
+    )
+    assert undiluted > diluted > 0

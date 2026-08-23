@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+data/*.duckdb
+data/*.duckdb.wal
+data/raw_cache/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+config/investor-policy.json
+.claude/settings.local.json
+*.pem
+*.key
+*.p12
+*.pfx
