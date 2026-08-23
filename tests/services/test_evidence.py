@@ -13,14 +13,14 @@ from src.models.schemas import (
     PriceRow,
     Provenance,
 )
-from src.services.research import build_evidence, compare_evidence, prepare_update
+from src.services.evidence import build_evidence, compare_evidence, prepare_update
 from src.storage import repository
 from src.storage.db import get_connection, migrate
 
 
 @pytest.fixture
 def con(tmp_path):
-    connection = get_connection(tmp_path / "research.duckdb")
+    connection = get_connection(tmp_path / "evidence.duckdb")
     migrate(connection)
     yield connection
     connection.close()

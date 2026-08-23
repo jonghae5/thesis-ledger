@@ -4,7 +4,7 @@ from typing import List, Optional
 
 def _as_aware_utc(dt: datetime) -> datetime:
     """DuckDB TIMESTAMP columns drop tzinfo on round-trip; snapshots are
-    always written in UTC (see cli/main.py), so a naive value is UTC."""
+    always written in UTC (see cli/expectations.py), so a naive value is UTC."""
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 

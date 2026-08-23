@@ -26,13 +26,13 @@ def _macro_provider_row(indicator="VIX", value=30.0):
 
 def test_macro_fetch_preserves_partial_provider_success(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     monkeypatch.setattr(
-        "src.cli.main.FredMacroProvider.get_snapshot",
+        "src.providers.macro.FredMacroProvider.get_snapshot",
         lambda self: ProviderResult(status=ProviderStatus.OK, data={"rows": [_macro_provider_row()]}),
     )
     monkeypatch.setattr(
-        "src.cli.main.FearGreedProvider.get_snapshot",
+        "src.providers.macro.FearGreedProvider.get_snapshot",
         lambda self: ProviderResult(status=ProviderStatus.ERROR, message="unavailable"),
     )
 
@@ -46,13 +46,13 @@ def test_macro_fetch_preserves_partial_provider_success(tmp_path, monkeypatch):
 
 def test_macro_command_reads_stored_context(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     monkeypatch.setattr(
-        "src.cli.main.FredMacroProvider.get_snapshot",
+        "src.providers.macro.FredMacroProvider.get_snapshot",
         lambda self: ProviderResult(status=ProviderStatus.OK, data={"rows": [_macro_provider_row()]}),
     )
     monkeypatch.setattr(
-        "src.cli.main.FearGreedProvider.get_snapshot",
+        "src.providers.macro.FearGreedProvider.get_snapshot",
         lambda self: ProviderResult(status=ProviderStatus.ERROR, message="unavailable"),
     )
     assert runner.invoke(app, ["data", "macro-fetch"]).exit_code == 0
@@ -75,7 +75,7 @@ def test_root_help_exposes_only_three_domains_and_doctor():
 
 def test_seed_watchlist_inserts_five_companies(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
 
     result = runner.invoke(app, ["data", "seed"])
     assert result.exit_code == 0
@@ -89,18 +89,18 @@ def test_seed_watchlist_inserts_five_companies(tmp_path, monkeypatch):
 
 def test_fetch_writes_prices_and_point_in_time_fundamentals(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     price_rows = [{
         "ticker": "NVDA", "date": "2026-08-21", "open": 100, "high": 105, "low": 99,
         "close": 104, "volume": 1000, "source": "yahoo_finance", "source_url": "https://x",
         "retrieved_at": datetime.now(timezone.utc).isoformat(), "as_of_date": "2026-08-21",
     }]
     monkeypatch.setattr(
-        "src.cli.main.YahooPriceProvider.get_prices",
+        "src.providers.yahoo.YahooPriceProvider.get_prices",
         lambda self, ticker, period_days=400: ProviderResult(status=ProviderStatus.OK, data={"rows": price_rows}),
     )
     monkeypatch.setattr(
-        "src.cli.main.SecFilingProvider.get_company_facts",
+        "src.providers.sec.SecFilingProvider.get_company_facts",
         lambda self, ticker: ProviderResult(status=ProviderStatus.OK, data={"facts": {"us-gaap": {
             "Revenues": {"units": {"USD": [{
                 "start": "2025-02-01", "end": "2026-01-31", "filed": "2026-02-25",
@@ -127,20 +127,20 @@ def test_fetch_writes_prices_and_point_in_time_fundamentals(tmp_path, monkeypatc
 
 def test_fetch_fails_when_sec_response_has_no_supported_filing_facts(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     price_rows = [{
         "ticker": "NVDA", "date": "2026-08-21", "open": 100, "high": 105, "low": 99,
         "close": 104, "volume": 1000, "source": "yahoo_finance", "source_url": "https://x",
         "retrieved_at": datetime.now(timezone.utc).isoformat(), "as_of_date": "2026-08-21",
     }]
     monkeypatch.setattr(
-        "src.cli.main.YahooPriceProvider.get_prices",
+        "src.providers.yahoo.YahooPriceProvider.get_prices",
         lambda self, ticker, period_days=400: ProviderResult(
             status=ProviderStatus.OK, data={"rows": price_rows},
         ),
     )
     monkeypatch.setattr(
-        "src.cli.main.SecFilingProvider.get_company_facts",
+        "src.providers.sec.SecFilingProvider.get_company_facts",
         lambda self, ticker: ProviderResult(
             status=ProviderStatus.OK, data={"facts": {"us-gaap": {}}},
         ),
@@ -157,7 +157,7 @@ def test_fetch_fails_when_sec_response_has_no_supported_filing_facts(tmp_path, m
 
 def test_market_command_computes_metrics_from_stored_prices(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     for i in range(25):
@@ -176,7 +176,7 @@ def test_market_command_computes_metrics_from_stored_prices(tmp_path, monkeypatc
 
 def test_market_command_rejects_stale_price_by_default(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     con.execute(
@@ -193,7 +193,7 @@ def test_market_command_rejects_stale_price_by_default(tmp_path, monkeypatch):
 
 def test_expectations_command_writes_snapshot_and_returns_consensus(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
 
     payload = {
         "symbol": "NVDA",
@@ -211,7 +211,7 @@ def test_expectations_command_writes_snapshot_and_returns_consensus(tmp_path, mo
         ],
     }
     monkeypatch.setattr(
-        "src.cli.main.AlphaVantageEstimateProvider.get_estimates",
+        "src.providers.alpha_vantage.AlphaVantageEstimateProvider.get_estimates",
         lambda self, ticker: ProviderResult(status=ProviderStatus.OK, data=payload),
     )
 
@@ -229,13 +229,13 @@ def test_expectations_command_writes_snapshot_and_returns_consensus(tmp_path, mo
 
 def test_expectations_command_reports_skipped_without_key(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     monkeypatch.setattr(
-        "src.cli.main.AlphaVantageEstimateProvider.get_estimates",
+        "src.providers.alpha_vantage.AlphaVantageEstimateProvider.get_estimates",
         lambda self, ticker: ProviderResult(status=ProviderStatus.SKIPPED, message="ALPHA_VANTAGE_API_KEY not set"),
     )
     monkeypatch.setattr(
-        "src.cli.main.YahooEstimateProvider.get_estimates",
+        "src.providers.yahoo.YahooEstimateProvider.get_estimates",
         lambda self, ticker: ProviderResult(status=ProviderStatus.ERROR, message="unavailable"),
     )
 
@@ -248,7 +248,7 @@ def test_expectations_command_reports_skipped_without_key(tmp_path, monkeypatch)
 
 def test_expectations_command_falls_back_to_yahoo(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     repository.upsert_fundamental_snapshots(con, [FundamentalSnapshotRow(
@@ -261,11 +261,11 @@ def test_expectations_command_falls_back_to_yahoo(tmp_path, monkeypatch):
     )])
     con.close()
     monkeypatch.setattr(
-        "src.cli.main.AlphaVantageEstimateProvider.get_estimates",
+        "src.providers.alpha_vantage.AlphaVantageEstimateProvider.get_estimates",
         lambda self, ticker: ProviderResult(status=ProviderStatus.ERROR, message="rate limit exceeded"),
     )
     monkeypatch.setattr(
-        "src.cli.main.YahooEstimateProvider.get_estimates",
+        "src.providers.yahoo.YahooEstimateProvider.get_estimates",
         lambda self, ticker: ProviderResult(status=ProviderStatus.OK, data={"rows": [{
             "period": "0y", "eps_mean": 5.0, "eps_high": 5.5, "eps_low": 4.5,
             "eps_analyst_count": 40, "revenue_mean": 200.0,
@@ -286,7 +286,7 @@ def test_expectations_command_falls_back_to_yahoo(tmp_path, monkeypatch):
 
 def test_expectations_command_returns_stale_snapshot_when_all_providers_fail(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     old = datetime.now(timezone.utc) - timedelta(days=5)
@@ -297,11 +297,11 @@ def test_expectations_command_returns_stale_snapshot_when_all_providers_fail(tmp
     ))
     con.close()
     monkeypatch.setattr(
-        "src.cli.main.AlphaVantageEstimateProvider.get_estimates",
+        "src.providers.alpha_vantage.AlphaVantageEstimateProvider.get_estimates",
         lambda self, ticker: ProviderResult(status=ProviderStatus.ERROR, message="rate limit exceeded"),
     )
     monkeypatch.setattr(
-        "src.cli.main.YahooEstimateProvider.get_estimates",
+        "src.providers.yahoo.YahooEstimateProvider.get_estimates",
         lambda self, ticker: ProviderResult(status=ProviderStatus.ERROR, message="unavailable"),
     )
 
@@ -315,7 +315,7 @@ def test_expectations_command_returns_stale_snapshot_when_all_providers_fail(tmp
 
 def test_revisions_command_computes_from_stored_snapshots(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     for days_ago, eps in [(31, 4.00), (0, 4.20)]:
@@ -335,7 +335,7 @@ def test_revisions_command_computes_from_stored_snapshots(tmp_path, monkeypatch)
 
 def test_save_guidance_command_reports_first_snapshot_then_raised(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
 
     first = runner.invoke(app, [
         "analysis", "save-guidance", "NVDA", "--revenue-low", "180000", "--revenue-high", "190000",
@@ -357,7 +357,7 @@ def test_save_guidance_command_reports_first_snapshot_then_raised(tmp_path, monk
 
 
 def test_save_guidance_does_not_compare_different_fiscal_periods(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.cli.main.DB_PATH", tmp_path / "test.duckdb")
+    monkeypatch.setattr("src.cli.common.DB_PATH", tmp_path / "test.duckdb")
     common = [
         "--guidance-scope", "FULL_YEAR", "--currency", "USD", "--value-unit", "MILLIONS",
         "--source-filing", "10-Q",
@@ -400,7 +400,7 @@ def _seed_valuation_fixture(con, ticker="NVDA", price=200.0):
 
 def test_valuation_command_computes_multiples_from_stored_data(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     _seed_valuation_fixture(con)
@@ -416,7 +416,7 @@ def test_valuation_command_computes_multiples_from_stored_data(tmp_path, monkeyp
 
 def test_reverse_dcf_command_returns_implied_growth(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     _seed_valuation_fixture(con)
@@ -432,7 +432,7 @@ def test_reverse_dcf_command_returns_implied_growth(tmp_path, monkeypatch):
 
 def test_scenario_command_computes_weighted_value(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     _seed_valuation_fixture(con)
@@ -462,7 +462,7 @@ def test_scenario_command_computes_weighted_value(tmp_path, monkeypatch):
 
 def test_sensitivity_command_returns_three_by_three_matrix(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     _seed_valuation_fixture(con)
@@ -484,7 +484,7 @@ def test_sensitivity_command_returns_three_by_three_matrix(tmp_path, monkeypatch
 
 def test_evidence_command_returns_research_only_package_without_consensus(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     _seed_valuation_fixture(con)
@@ -501,7 +501,7 @@ def test_evidence_command_returns_research_only_package_without_consensus(tmp_pa
 
 
 def test_evidence_command_exits_nonzero_when_core_inputs_are_missing(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.cli.main.DB_PATH", tmp_path / "test.duckdb")
+    monkeypatch.setattr("src.cli.common.DB_PATH", tmp_path / "test.duckdb")
 
     result = runner.invoke(app, ["data", "evidence", "EMPTY"])
 
@@ -511,7 +511,7 @@ def test_evidence_command_exits_nonzero_when_core_inputs_are_missing(tmp_path, m
 
 def test_compare_command_returns_peer_rows_without_composite_score(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     _seed_valuation_fixture(con, "AAA", 100.0)
@@ -527,7 +527,7 @@ def test_compare_command_returns_peer_rows_without_composite_score(tmp_path, mon
 
 
 def test_compare_command_exits_nonzero_when_no_peer_is_analyzable(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.cli.main.DB_PATH", tmp_path / "test.duckdb")
+    monkeypatch.setattr("src.cli.common.DB_PATH", tmp_path / "test.duckdb")
 
     result = runner.invoke(app, ["data", "compare", "AAA", "BBB"])
 
@@ -539,7 +539,7 @@ def test_compare_command_exits_nonzero_when_no_peer_is_analyzable(tmp_path, monk
 
 def test_prepare_command_returns_evidence_and_no_history_state(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     _seed_valuation_fixture(con)
@@ -560,11 +560,11 @@ from src.models.schemas import CatalystRow, InvestmentAnalysisRow
 
 def test_earnings_surprise_falls_back_to_finnhub(monkeypatch):
     monkeypatch.setattr(
-        "src.cli.main.AlphaVantageEstimateProvider.get_earnings_history",
+        "src.providers.alpha_vantage.AlphaVantageEstimateProvider.get_earnings_history",
         lambda self, ticker: ProviderResult(status=ProviderStatus.ERROR, message="quota"),
     )
     monkeypatch.setattr(
-        "src.cli.main.FinnhubEarningsProvider.get_earnings_history",
+        "src.providers.finnhub.FinnhubEarningsProvider.get_earnings_history",
         lambda self, ticker: ProviderResult(status=ProviderStatus.OK, data={"rows": [{
             "fiscal_date_ending": "2026-06-30", "reported_eps": 1.1,
             "estimated_eps": 1.0, "surprise": 0.1, "surprise_percentage": 10.0,
@@ -580,7 +580,7 @@ def test_earnings_surprise_falls_back_to_finnhub(monkeypatch):
 
 def test_news_command_returns_articles_with_key(monkeypatch):
     monkeypatch.setattr(
-        "src.cli.main.FinnhubNewsProvider.get_news",
+        "src.providers.finnhub.FinnhubNewsProvider.get_news",
         lambda self, ticker, days=7: ProviderResult(
             status=ProviderStatus.OK,
             data={"rows": [{"headline": "NVIDIA beats estimates", "source": "Reuters"}]},
@@ -598,7 +598,7 @@ def test_news_command_returns_articles_with_key(monkeypatch):
 
 def test_news_command_fails_without_key(monkeypatch):
     monkeypatch.setattr(
-        "src.cli.main.FinnhubNewsProvider.get_news",
+        "src.providers.finnhub.FinnhubNewsProvider.get_news",
         lambda self, ticker, days=7: ProviderResult(status=ProviderStatus.SKIPPED, message="FINNHUB_API_KEY not set"),
     )
 
@@ -610,7 +610,7 @@ def test_news_command_fails_without_key(monkeypatch):
 
 def test_save_catalyst_command_inserts_row(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
 
     result = runner.invoke(app, [
         "analysis", "save-catalyst", "NVDA", "--event-date", "2026-09-05",
@@ -629,7 +629,7 @@ def test_save_catalyst_command_inserts_row(tmp_path, monkeypatch):
 
 def test_catalysts_command_merges_stored_and_calendar(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     repository.insert_catalyst(con, CatalystRow(
@@ -639,7 +639,7 @@ def test_catalysts_command_merges_stored_and_calendar(tmp_path, monkeypatch):
     con.close()
 
     monkeypatch.setattr(
-        "src.cli.main.AlphaVantageEstimateProvider.get_earnings_calendar",
+        "src.providers.alpha_vantage.AlphaVantageEstimateProvider.get_earnings_calendar",
         lambda self, ticker, horizon="12month": ProviderResult(status=ProviderStatus.OK, data={"rows": [
             {"symbol": "NVDA", "name": "NVIDIA Corp", "report_date": "2026-11-19",
              "fiscal_date_ending": "2026-10-31", "estimate": 1.28, "currency": "USD", "time_of_day": "post-market"},
@@ -654,7 +654,7 @@ def test_catalysts_command_merges_stored_and_calendar(tmp_path, monkeypatch):
 
 def test_catalysts_command_works_without_av_key(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     repository.insert_catalyst(con, CatalystRow(
@@ -663,15 +663,15 @@ def test_catalysts_command_works_without_av_key(tmp_path, monkeypatch):
     ))
     con.close()
     monkeypatch.setattr(
-        "src.cli.main.AlphaVantageEstimateProvider.get_earnings_calendar",
+        "src.providers.alpha_vantage.AlphaVantageEstimateProvider.get_earnings_calendar",
         lambda self, ticker, horizon="12month": ProviderResult(status=ProviderStatus.SKIPPED, message="ALPHA_VANTAGE_API_KEY not set"),
     )
     monkeypatch.setattr(
-        "src.cli.main.FinnhubEarningsProvider.get_earnings_calendar",
+        "src.providers.finnhub.FinnhubEarningsProvider.get_earnings_calendar",
         lambda self, ticker: ProviderResult(status=ProviderStatus.SKIPPED, message="FINNHUB_API_KEY not set"),
     )
     monkeypatch.setattr(
-        "src.cli.main.YahooEstimateProvider.get_earnings_calendar",
+        "src.providers.yahoo.YahooEstimateProvider.get_earnings_calendar",
         lambda self, ticker: ProviderResult(status=ProviderStatus.ERROR, message="unavailable"),
     )
 
@@ -684,13 +684,13 @@ def test_catalysts_command_works_without_av_key(tmp_path, monkeypatch):
 
 def test_catalysts_command_falls_back_to_finnhub(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     monkeypatch.setattr(
-        "src.cli.main.AlphaVantageEstimateProvider.get_earnings_calendar",
+        "src.providers.alpha_vantage.AlphaVantageEstimateProvider.get_earnings_calendar",
         lambda self, ticker, horizon="12month": ProviderResult(status=ProviderStatus.ERROR, message="quota"),
     )
     monkeypatch.setattr(
-        "src.cli.main.FinnhubEarningsProvider.get_earnings_calendar",
+        "src.providers.finnhub.FinnhubEarningsProvider.get_earnings_calendar",
         lambda self, ticker: ProviderResult(status=ProviderStatus.OK, data={"rows": [{
             "symbol": "NVDA", "name": None, "report_date": "2026-11-19",
             "fiscal_date_ending": None, "estimate": 1.2,
@@ -708,8 +708,8 @@ def test_catalysts_command_falls_back_to_finnhub(tmp_path, monkeypatch):
 
 def test_save_analysis_command_inserts_and_get_latest_analysis_reads_it_back(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
-    monkeypatch.setattr("src.cli.main.build_evidence", lambda con, ticker: {
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
+    monkeypatch.setattr("src.services.evidence.build_evidence", lambda con, ticker: {
         "quality": {"can_decide": True},
     })
 
@@ -739,7 +739,7 @@ def test_save_analysis_command_inserts_and_get_latest_analysis_reads_it_back(tmp
 
 def test_save_analysis_command_rejects_invalid_decision(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
 
     result = runner.invoke(app, [
         "analysis", "save", "NVDA",
@@ -753,8 +753,8 @@ def test_save_analysis_command_rejects_invalid_decision(tmp_path, monkeypatch):
 
 
 def test_save_analysis_command_blocks_directional_record_when_research_only(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.cli.main.DB_PATH", tmp_path / "test.duckdb")
-    monkeypatch.setattr("src.cli.main.build_evidence", lambda con, ticker: {
+    monkeypatch.setattr("src.cli.common.DB_PATH", tmp_path / "test.duckdb")
+    monkeypatch.setattr("src.services.evidence.build_evidence", lambda con, ticker: {
         "quality": {
             "can_decide": False,
             "can_research": True,
@@ -775,7 +775,7 @@ def test_save_analysis_command_blocks_directional_record_when_research_only(tmp_
 
 def test_get_latest_analysis_returns_no_history_when_empty(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
 
     result = runner.invoke(app, ["analysis", "latest", "NVDA"])
     assert result.exit_code == 0
@@ -784,7 +784,7 @@ def test_get_latest_analysis_returns_no_history_when_empty(tmp_path, monkeypatch
 
 def test_analysis_history_command_lists_past_analyses_most_recent_first(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     repository.insert_investment_analysis(con, InvestmentAnalysisRow(
@@ -807,7 +807,7 @@ def test_analysis_history_command_lists_past_analyses_most_recent_first(tmp_path
 
 def test_analysis_history_command_empty_returns_empty_list(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
 
     result = runner.invoke(app, ["analysis", "history", "NVDA"])
     assert result.exit_code == 0
@@ -816,7 +816,7 @@ def test_analysis_history_command_empty_returns_empty_list(tmp_path, monkeypatch
 
 def test_change_since_command_computes_price_and_consensus_deltas(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     con = get_connection(db_path)
     migrate(con)
     for d, close in [("2026-07-22", 195.0), ("2026-08-22", 214.72)]:
@@ -843,7 +843,7 @@ def test_change_since_command_computes_price_and_consensus_deltas(tmp_path, monk
 
 def test_change_since_command_errors_without_stored_prices(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
 
     result = runner.invoke(app, ["analysis", "change-since", "NVDA", "--since-date", "2026-07-22"])
     assert result.exit_code == 1
@@ -852,7 +852,7 @@ def test_change_since_command_errors_without_stored_prices(tmp_path, monkeypatch
 
 def test_doctor_fails_commercial_mode_without_licenses(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     monkeypatch.setenv("THESIS_LEDGER_USAGE", "commercial")
     monkeypatch.delenv("LICENSED_DATA_PROVIDERS", raising=False)
 
@@ -866,7 +866,7 @@ def test_doctor_fails_commercial_mode_without_licenses(tmp_path, monkeypatch):
 
 def test_doctor_warns_on_empty_personal_database(tmp_path, monkeypatch):
     db_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr("src.cli.main.DB_PATH", db_path)
+    monkeypatch.setattr("src.cli.common.DB_PATH", db_path)
     monkeypatch.setenv("THESIS_LEDGER_USAGE", "personal")
 
     result = runner.invoke(app, ["doctor"])
