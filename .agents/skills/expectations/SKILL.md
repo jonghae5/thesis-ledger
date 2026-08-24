@@ -20,7 +20,7 @@ uv run thesis analysis save-guidance <TICKER> \
 
 `expectations`는 Alpha Vantage를 먼저 사용하고 실패하면 yfinance로 전환한다. 모두 실패했지만 저장된 snapshot이 있으면 새 행을 만들지 않고 `STALE`로 반환한다. 실적 surprise와 earnings calendar는 Alpha Vantage → Finnhub → yfinance 순서로 전환한다. provider별 성공·실패는 `provider_attempts`와 provenance에서 확인한다.
 
-한국 종목용 `korea_stock` MCP는 컨센서스, estimate revision, earnings surprise, guidance snapshot을 제공하지 않는다. 6자리 한국 종목에 미국 종목용 provider나 CLI를 억지로 적용하지 않고 해당 기대치 축을 `MISSING`으로 명시한다. 별도 동종 provider의 시계열 snapshot이 확보되기 전에는 revision이나 방향성 투자 판단을 만들지 않는다.
+한국 종목용 `korea_stock` MCP는 컨센서스, estimate revision, earnings surprise, guidance snapshot을 제공하지 않는다. 6자리 한국 종목에 미국 종목용 provider나 CLI를 억지로 적용하지 않고 해당 기대치 축을 `MISSING`으로 명시한다. 최근 증권사별 전망과 목표주가 원문이 질문에 필요하면 `korea-research-reports` Skill을 사용하되, 검색된 일부 리포트를 시장 전체 컨센서스나 동종 provider의 완전한 revision snapshot으로 취급하지 않는다. 별도 동종 provider의 시계열 snapshot이 확보되기 전에는 revision이나 방향성 투자 판단을 만들지 않는다.
 
 정상 수집만 snapshot을 append한다. revision은 같은 provider에서 서로 다른 날짜의 snapshot이 둘 이상 있을 때만 의미가 있다. provider가 바뀌면 이전 provider의 숫자와 비교하지 않고 `provider_switch=true`, revision은 충분한 동종 history가 쌓일 때까지 `null`로 둔다. analyst count가 작거나 fallback/`STALE`이면 그 한계를 명시한다.
 

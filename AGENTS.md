@@ -18,6 +18,7 @@ Codex가 투자 판단을 orchestration하고, `src/`의 CLI는 데이터 수집
 | 가격, 모멘텀, 매출, 마진, 재무상태 | `company-data` |
 | 사업 경제성, moat, 재투자, 이익의 질, 자본배분 | `business-quality` |
 | 컨센서스, revision, guidance, surprise | `expectations` |
+| 한국 증권사 리포트, 목표주가·투자의견 원문, 리포트 요약 | `korea-research-reports` |
 | multiple, reverse DCF, scenario | `valuation` |
 | 금리, 인플레이션, 경기, 신용, VIX, 공포탐욕지수 | `macro-context` |
 

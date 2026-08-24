@@ -13,6 +13,8 @@ BUY/SELL 생성기가 아니라 fact, market expectation, scenario의 차이와 
 
 이 MCP는 컨센서스·revision을 제공하지 않고 연간 재무에 실제 filing date를 붙이지 않으므로 현재 한국 종목은 `can_research=true`, `can_decide=false` 범위다. `investment_analysis`나 `fundamental_snapshots`에 저장하지 않고, 방향성 판단·기대수익률·confidence를 만들지 않는다. 최신 뉴스와 catalyst는 필요한 경우 뉴스 reference에 따라 별도 확인하며, 포트폴리오 수량·평균단가·자산 같은 개인 정보는 MCP에 전달하지 않는다.
 
+최근 증권사 전망·목표주가·투자의견 또는 리포트 원문이 질문에 중요하면 `korea-research-reports` Skill로 최근 30일 자료를 확인한다. 이는 supplemental evidence이며, 일부 검색 리포트를 시장 전체 컨센서스 anchor로 바꾸거나 `can_decide=true`의 근거로 사용하지 않는다.
+
 ## "업데이트해줘" 실행 순서
 
 1. 가격과 SEC filing을 갱신하고 이전 분석을 포함하지 않은 현재 evidence로 품질을 먼저 확인한다. 독립 판단을 작성하기 전에는 `analysis prepare`, `analysis latest`, `analysis history`로 이전 결론을 읽지 않는다.
