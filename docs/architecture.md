@@ -28,6 +28,7 @@ Focused Skills keep the analysis axes separate:
 - `expectations` owns consensus, revisions, surprise, and comparable guidance.
 - `valuation` owns price-implied expectations and scenario values.
 - `macro-context` keeps macro signals independent and explains transmission paths.
+- `market-pulse` keeps verified news and catalysts separate from Reddit retail sentiment, narratives, and discussion momentum.
 - `investment-analysis` orchestrates only the axes material to the question and owns the final thesis judgment.
 
 ## Data lifecycle

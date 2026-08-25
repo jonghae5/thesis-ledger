@@ -5,7 +5,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
 SKILL_NAMES = {
     "investment-analysis", "company-data", "expectations", "valuation",
-    "macro-context", "business-quality", "korea-research-reports",
+    "macro-context", "business-quality", "korea-research-reports", "market-pulse",
 }
 
 
@@ -49,3 +49,18 @@ def test_investment_analysis_uses_blind_bundle_workflow_and_advice_contract():
     assert "evidence-bundle-id" in text
     assert "references/advice-contract.md" in text
     assert (skill_dir / "references" / "advice-contract.md").is_file()
+
+
+def test_market_pulse_separates_news_from_reddit_inference():
+    skill_dir = SKILLS_DIR / "market-pulse"
+    text = (skill_dir / "SKILL.md").read_text()
+    reddit = (skill_dir / "references" / "reddit-sentiment.md").read_text()
+    news = (skill_dir / "references" / "news-catalysts.md").read_text()
+
+    assert "sentiment와 mention volume을 구분" in text
+    assert '"allowed_domains": ["reddit.com"]' in reddit
+    assert "search_context_size" in reddit
+    assert "INSUFFICIENT" in reddit
+    assert "comment permalink" in reddit
+    assert "개별 게시물 direct URL" in reddit
+    assert "1차 자료" in news

@@ -15,6 +15,7 @@ Codex가 투자 판단을 orchestration하고, `src/`의 CLI는 데이터 수집
 | 질문 | Skill |
 |---|---|
 | 종합 투자 판단, thesis 변화, catalyst/risk | `investment-analysis` |
+| 최신 뉴스·공식 발표·catalyst, Reddit 분위기·민심·bull/bear narrative | `market-pulse` |
 | 가격, 모멘텀, 매출, 마진, 재무상태 | `company-data` |
 | 사업 경제성, moat, 재투자, 이익의 질, 자본배분 | `business-quality` |
 | 컨센서스, revision, guidance, surprise | `expectations` |
